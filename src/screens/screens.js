@@ -30,8 +30,9 @@ export function BootScreen() {
 
 const TITLE_PARTS = { Sort: 'Sort', Garden: 'Garden' };
 
-function menuTile({ label, sub, iconName, tone, onClick }) {
+function menuTile({ label, sub, iconName, tone, onClick, action }) {
   return Button({
+    action,
     label,
     sub,
     chip: { name: iconName, tone },
@@ -108,22 +109,25 @@ export function MenuScreen() {
         iconName: 'play',
         variant: 'primary',
         cls: 'btn--full',
+        action: 'play',
         onClick: () => go('level')
       }),
-      menuTile({ label: t('button.garden'), iconName: 'garden', tone: 'green', onClick: () => go('garden') }),
-      menuTile({ label: t('button.shop'), iconName: 'shop', tone: 'gold', onClick: () => go('shop') }),
+      menuTile({ action: 'garden', label: t('button.garden'), iconName: 'garden', tone: 'green', onClick: () => go('garden') }),
+      menuTile({ action: 'shop', label: t('button.shop'), iconName: 'shop', tone: 'gold', onClick: () => go('shop') }),
       menuTile({
+        action: 'daily',
         label: t('button.daily'),
         sub: info.claimedToday ? undefined : t('daily.take', { n: info.amount }),
         iconName: 'gift',
         tone: 'pink',
         onClick: () => go('daily')
       }),
-      menuTile({ label: t('button.settings'), iconName: 'settings', tone: 'blue', onClick: () => go('settings') })
+      menuTile({ action: 'settings', label: t('button.settings'), iconName: 'settings', tone: 'blue', onClick: () => go('settings') })
     ]),
     helpers,
     el('div', { class: 'row' }, [
       Button({
+        action: 'tasks',
         label: t('button.tasks'),
         sub: tasksReady ? t('button.collect') : undefined,
         chip: { name: 'task', tone: 'blue', size: 'sm' },
@@ -134,6 +138,7 @@ export function MenuScreen() {
         onClick: () => go('tasks')
       }),
       Button({
+        action: 'rewards',
         label: t('button.rewards'),
         chip: { name: 'chest', tone: 'gold', size: 'sm' },
         variant: 'ghost',
@@ -204,6 +209,7 @@ export function ResultScreen({ levelNumber = 1, stars = 1, coins = 0, newCats = 
   const refreshCoins = (from) => countUp(coinsRow, from, earned, setCoinLabel);
 
   const doubleBtn = Button({
+    action: 'double',
     label: t('button.double'),
     sub: t('reward.watch'),
     chip: { name: 'reward', tone: 'green' },
@@ -223,6 +229,7 @@ export function ResultScreen({ levelNumber = 1, stars = 1, coins = 0, newCats = 
   });
 
   const chestBtn = Button({
+    action: 'chest',
     label: t('button.watchBonus'),
     sub: '+25',
     chip: { name: 'chest', tone: 'gold' },
@@ -275,6 +282,7 @@ export function ResultScreen({ levelNumber = 1, stars = 1, coins = 0, newCats = 
     el('div', { class: 'spacer' }),
     actions,
     Button({
+      action: 'continue',
       label: t('button.continue'),
       iconName: 'play',
       variant: 'primary',
@@ -380,7 +388,7 @@ export function GardenScreen() {
 
 /* ---------------- shop ---------------- */
 
-function shopRow({ iconName, tone, title, sub, price, owned, onBuy }) {
+function shopRow({ iconName, tone, title, sub, price, owned, onBuy, buyId }) {
   return el('div', { class: 'shop-item' }, [
     IconChip({ name: iconName, tone }),
     el('div', { class: 'grow' }, [
@@ -390,6 +398,7 @@ function shopRow({ iconName, tone, title, sub, price, owned, onBuy }) {
     owned
       ? el('span', { class: 'tag', text: t('button.owned') })
       : Button({
+        action: `buy-${buyId}`,
         label: String(price),
         iconName: 'coin',
         size: 'sm',
@@ -450,6 +459,7 @@ export function ShopScreen() {
         el('h3', { class: 'grow', text: t('shop.boosters') })
       ]),
       ...BOOSTER_SHOP.map((b) => shopRow({
+        buyId: b.id,
         iconName: b.icon,
         tone: BOOSTER_TONES[b.id] || 'green',
         title: t(`booster.${b.id}`),
@@ -471,6 +481,7 @@ export function ShopScreen() {
         el('h3', { class: 'grow', text: t('shop.decor') })
       ]),
       ...DECOR.map((d) => shopRow({
+        buyId: d.id,
         iconName: d.id,
         tone: DECOR_TONES[d.id] || 'green',
         title: t(`decor.${d.id}`),
@@ -524,6 +535,7 @@ export function DailyScreen() {
     }));
   } else {
     body.appendChild(Button({
+      action: 'claim',
       label: t('daily.take', { n: info.amount }),
       iconName: 'gift',
       variant: 'primary',
@@ -593,7 +605,7 @@ export function TasksScreen() {
             })
         ]),
         el('div', { class: 'progress' }, [
-          el('div', { class: 'progress__fill', style: { width: `${Math.round((task.progress / task.goal) * 100)}%` } })
+          el('div', { class: 'progress__fill', style: { transform: `scaleX(${Math.min(1, task.progress / task.goal)})` } })
         ])
       ]);
     })
@@ -681,6 +693,7 @@ export function RewardsScreen() {
 
 export function SettingsScreen() {
   const langRow = el('div', { class: 'row' }, ['ru', 'en'].map((lang) => Button({
+    action: `lang-${lang}`,
     label: lang === 'ru' ? 'Русский' : 'English',
     size: 'sm',
     variant: currentLang() === lang ? 'primary' : 'ghost',
@@ -705,12 +718,14 @@ export function SettingsScreen() {
     BackBar(t('settings.title'), () => go('menu')),
     Card([
       Toggle({
+        action: 'sound',
         label: t('settings.sound'),
         iconName: state.settings.sound ? 'sound-on' : 'sound-off',
         checked: state.settings.sound,
         onChange: (v) => { state.settings.sound = v; persist(); track('settings_change', { sound: v }); rerender(); }
       }),
       Toggle({
+        action: 'music',
         label: t('settings.music'),
         iconName: state.settings.music ? 'music-on' : 'music-off',
         checked: state.settings.music,
@@ -727,6 +742,7 @@ export function SettingsScreen() {
     ]),
     Card([
       Button({
+        action: 'reset',
         label: t('settings.reset'),
         iconName: 'close',
         variant: 'danger',

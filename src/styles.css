@@ -607,7 +607,7 @@ p { margin: 0; color: var(--muted); }
 }
 
 .progress { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
-.progress__fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width var(--dur-slow) var(--ease-out); }
+.progress__fill { height: 100%; width: 100%; background: var(--accent); border-radius: 999px; transform-origin: left center; transform: scaleX(0); transition: transform var(--dur-slow) var(--ease-out); }
 
 /* ---------- modal / toast / overlay ---------- */
 

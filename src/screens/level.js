@@ -4,6 +4,7 @@ import { track } from '../core/analytics.js';
 import * as Sound from '../core/audio.js';
 import * as Ads from '../core/ads.js';
 import { go, later, every, cancel, onLeave } from '../core/router.js';
+import { registerLevel, clearLevel } from '../core/debug.js';
 import { el, Button, IconButton, Chip, Modal, toast, TopBar } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import {
@@ -83,7 +84,7 @@ export function LevelScreen() {
   const boosterBar = el('div', { class: 'boosters' });
 
   root.appendChild(TopBar({
-    left: IconButton({ name: 'pause', onClick: openPause, aria: t('level.pause') }),
+    left: IconButton({ name: 'pause', onClick: openPause, aria: t('level.pause'), action: 'pause' }),
     title: `${t('level.title')} ${levelNumber}`,
     right: el('div', { class: 'row' }, [movesChip, coinsChip])
   }));
@@ -102,7 +103,46 @@ export function LevelScreen() {
   onLeave(() => {
     if (hintTimer) clearTimeout(hintTimer);
     document.removeEventListener('keydown', onKey);
+    clearLevel();
     state.board = null;
+  });
+
+  registerLevel({
+    board: () => board.tubes.map((tube) => tube.slice()),
+    busy: () => busy,
+    refresh: () => refresh(),
+    setMoves(n) {
+      session.movesLeft = Math.max(0, Math.round(n));
+      persist();
+      renderTop();
+      if (session.movesLeft <= 0 && !finished) outOfMoves();
+      return session.movesLeft;
+    },
+    setBoard(tubes) {
+      board.tubes = tubes.map((tube) => tube.slice());
+      board.selectedTube = null;
+      hint = null;
+      rebuild();
+      return true;
+    },
+    validMove() {
+      if (finished) return null; // level is over: nothing left to play
+      // the planned move first: "any legal pair" can ping-pong between two jars
+      const best = findBestMove(board);
+      if (best && canMove(board, best.from, best.to)) return [best.from, best.to];
+      for (let f = 0; f < board.tubes.length; f++) {
+        for (let s2 = 0; s2 < board.tubes.length; s2++) {
+          if (canMove(board, f, s2)) return [f, s2];
+        }
+      }
+      return null;
+    },
+    solveOne() {
+      const move = findBestMove(board);
+      if (!move || busy || finished) return false;
+      doMove(move.from, move.to);
+      return true;
+    }
   });
 
   /* ---------------- rendering ---------------- */
@@ -124,7 +164,7 @@ export function LevelScreen() {
   const makeSlot = () => el('div', { class: 'tube__slot' });
 
   function tubeNode(items, index) {
-    const node = el('button', { type: 'button', class: 'tube' });
+    const node = el('button', { type: 'button', class: 'tube', 'data-tube': String(index) });
     items.forEach((colorId) => node.appendChild(makeItem(colorId)));
     for (let i = items.length; i < board.capacity; i++) node.appendChild(makeSlot());
     node.addEventListener('click', () => onTube(index));
@@ -221,16 +261,17 @@ export function LevelScreen() {
     if (coinsValue.textContent !== coins) { coinsValue.textContent = coins; pulse(coinsChip); }
   }
 
-  function boosterButton({ kind, iconName, labelKey, onClick, count, reward, tone = 'green' }) {
+  function boosterButton({ kind, iconName, labelKey, onClick, count, reward, tone = 'green', action }) {
     const btn = el('button', {
       type: 'button',
       class: `booster booster--${tone}`,
+      'data-action': action || kind,
       'aria-label': `${t(labelKey)}${count !== null ? `: ${count}` : ''}`
     }, [
       el('span', { class: 'booster__icon', html: `<span class="icon">${icon(iconName)}</span>` }),
       el('span', { class: 'booster__label', text: t(labelKey) })
     ]);
-    if (count !== null && count > 0) btn.appendChild(el('span', { class: 'booster__count', text: String(count) }));
+    if (count !== null && count > 0) btn.appendChild(el('span', { class: 'booster__count', 'data-badge': action || kind, text: String(count) }));
     else if (reward) btn.appendChild(el('span', { class: 'booster__reward', html: icon('reward') }));
     btn.addEventListener('click', () => { if (!btn.disabled) { Sound.play('tap'); onClick(); } });
     return btn;
@@ -240,23 +281,23 @@ export function LevelScreen() {
     const canReward = (src) => Ads.canUseReward(src);
     boosterBar.replaceChildren(
       boosterButton({
-        kind: 'hint', iconName: 'hint', labelKey: 'booster.hint', tone: 'gold', count: boosterCount('hint'),
+        kind: 'hint', iconName: 'hint', action: 'hint', labelKey: 'booster.hint', tone: 'gold', count: boosterCount('hint'),
         reward: canReward('hint_pack'), onClick: useHint
       }),
       boosterButton({
-        kind: 'undo', iconName: 'undo', labelKey: 'booster.undo', tone: 'blue', count: boosterCount('undo'),
+        kind: 'undo', iconName: 'undo', action: 'undo', labelKey: 'booster.undo', tone: 'blue', count: boosterCount('undo'),
         reward: canReward('undo_pack'), onClick: useUndo
       }),
       boosterButton({
-        kind: 'tube', iconName: 'plus', labelKey: 'booster.tube', tone: 'green', count: boosterCount('tube'),
+        kind: 'tube', iconName: 'plus', action: 'extra-tube', labelKey: 'booster.tube', tone: 'green', count: boosterCount('tube'),
         reward: canReward('extra_tube'), onClick: useExtraTube
       }),
       boosterButton({
-        kind: 'leaf', iconName: 'leaf', labelKey: 'booster.leaf', tone: 'warm', count: boosterCount('leaf'),
+        kind: 'leaf', iconName: 'leaf', action: 'leaf', labelKey: 'booster.leaf', tone: 'warm', count: boosterCount('leaf'),
         reward: canReward('magic_leaf'), onClick: useMagicLeaf
       }),
       boosterButton({
-        kind: 'help', iconName: 'info', labelKey: 'button.help', tone: 'pink', count: null,
+        kind: 'help', iconName: 'info', action: 'help', labelKey: 'button.help', tone: 'pink', count: null,
         reward: true, onClick: openHelp
       })
     );

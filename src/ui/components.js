@@ -34,13 +34,14 @@ function withTap(node, onClick, sound = 'tap') {
   return node;
 }
 
-export function Button({ label, sub, iconName, chip, variant = 'ghost', onClick, disabled, aria, wide = true, size, center = true, sound = 'tap', cls: extraCls }) {
+export function Button({ label, sub, iconName, chip, variant = 'ghost', onClick, disabled, aria, wide = true, size, center = true, sound = 'tap', cls: extraCls, action }) {
   const cls = ['btn', `btn--${variant}`];
   if (extraCls) cls.push(extraCls);
   if (wide) cls.push('btn--wide');
   if (size === 'sm') cls.push('btn--sm');
   if (center) cls.push('btn--center');
   const btn = el('button', { class: cls.join(' '), type: 'button', disabled: !!disabled, 'aria-label': aria || label });
+  if (action) btn.setAttribute('data-action', action);
   if (chip) btn.appendChild(IconChip({ name: chip.name || iconName, tone: chip.tone, size: chip.size }));
   else if (iconName) btn.appendChild(el('span', { class: 'icon', html: icon(iconName) }));
   const body = el('span', { class: 'btn__body' }, [el('span', { text: label })]);
@@ -56,7 +57,7 @@ export function IconChip({ name, tone = 'green', size = 'md' }) {
   });
 }
 
-export function IconButton({ name, onClick, aria, variant = 'icon', disabled }) {
+export function IconButton({ name, onClick, aria, variant = 'icon', disabled, action }) {
   const btn = el('button', {
     class: `btn btn--${variant === 'plain' ? 'plain' : 'icon'}${variant === 'plain' ? ' btn--icon' : ''}`,
     type: 'button',
@@ -64,6 +65,7 @@ export function IconButton({ name, onClick, aria, variant = 'icon', disabled }) 
     disabled: !!disabled,
     html: `<span class="icon">${icon(name)}</span>`
   });
+  if (action) btn.setAttribute('data-action', action);
   return withTap(btn, onClick);
 }
 
@@ -82,7 +84,7 @@ export function Card(children, cls = '') {
   return el('div', { class: `card ${cls}`.trim() }, children);
 }
 
-export function Toggle({ label, iconName, checked, onChange }) {
+export function Toggle({ label, iconName, checked, onChange, action }) {
   const btn = el('button', {
     class: 'btn btn--ghost btn--wide',
     type: 'button',
@@ -93,6 +95,7 @@ export function Toggle({ label, iconName, checked, onChange }) {
     el('span', { class: 'grow', text: label, style: { textAlign: 'left' } }),
     el('span', { class: 'badge' + (checked ? ' badge--accent' : ''), html: checked ? `<span class="icon" style="width:14px;height:14px">${icon('check')}</span>` : '' })
   ]);
+  if (action) btn.setAttribute('data-action', action);
   return withTap(btn, () => onChange(!checked));
 }
 
@@ -110,7 +113,7 @@ export function TopBar({ left, title, right, center }) {
 
 export function BackBar(title, onBack, right) {
   return TopBar({
-    left: IconButton({ name: 'back', onClick: onBack, aria: t('button.back') }),
+    left: IconButton({ name: 'back', onClick: onBack, aria: t('button.back'), action: 'back' }),
     title,
     right
   });

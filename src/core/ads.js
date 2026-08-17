@@ -37,6 +37,38 @@ const MIN_INTERSTITIAL_LEVEL = 4;
 let sessionShows = { garden_milestone: 0, bonus_room: 0 };
 let busy = false;
 let lastRewardedClose = 0;
+const shows = { rewarded: 0, interstitial: 0 };
+
+export function adShowCounts() {
+  return { ...shows };
+}
+
+export function resetAdCounts() {
+  shows.rewarded = 0;
+  shows.interstitial = 0;
+}
+
+// Pure gate, so the limits can be unit-tested without a DOM or a live state.
+export function interstitialAllowed(ctx, now = Date.now()) {
+  const {
+    source, level = 1, tutorialDone = false, screen = 'menu', openModals = 0,
+    showsSession = 0, lastTime = 0, levelsSince = 0, lastRewardedAt = 0,
+    gardenMilestoneShows = 0, busy: isBusy = false
+  } = ctx || {};
+  if (isBusy) return false;
+  if (!INTERSTITIAL_SOURCES.includes(source)) return false;
+  if (!tutorialDone) return false;
+  if (level < MIN_INTERSTITIAL_LEVEL) return false;
+  if (screen === 'level') return false;
+  if (openModals > 0) return false;
+  if (showsSession >= MAX_INTERSTITIAL_SESSION) return false;
+  if (now - lastTime < MIN_INTERSTITIAL_GAP) return false;
+  if (now - lastRewardedAt < 20000) return false;
+  if (source === 'level_complete' && levelsSince < 3) return false;
+  if (source === 'garden_milestone' && gardenMilestoneShows >= 1) return false;
+  if (source === 'fail_exit' && levelsSince < 1) return false;
+  return true;
+}
 
 /* ---------------- platform adapters ---------------- */
 
@@ -257,6 +289,7 @@ export async function showRewarded(source) {
   busy = false;
   lastRewardedClose = Date.now();
   if (ok) {
+    shows.rewarded += 1;
     noteReward(source);
     Sound.play('reward');
     track('reward_success', { source });
@@ -268,20 +301,20 @@ export async function showRewarded(source) {
   return ok;
 }
 
-export function canShowInterstitial(source) {
-  if (busy) return false;
-  if (!INTERSTITIAL_SOURCES.includes(source)) return false;
-  if (!state.tutorialDone) return false;
-  if (state.level < MIN_INTERSTITIAL_LEVEL) return false;
-  if (state.screen === 'level') return false;
-  if (openModalsCount() > 0) return false;
-  if (state.ads.interstitialShowsSession >= MAX_INTERSTITIAL_SESSION) return false;
-  if (Date.now() - state.ads.lastInterstitialTime < MIN_INTERSTITIAL_GAP) return false;
-  if (Date.now() - lastRewardedClose < 20000) return false;
-  if (source === 'level_complete' && state.ads.levelsSinceLastInterstitial < 3) return false;
-  if (source === 'garden_milestone' && sessionShows.garden_milestone >= 1) return false;
-  if (source === 'fail_exit' && state.ads.levelsSinceLastInterstitial < 1) return false;
-  return true;
+export function canShowInterstitial(source, now = Date.now()) {
+  return interstitialAllowed({
+    source,
+    level: state.level,
+    tutorialDone: state.tutorialDone,
+    screen: state.screen,
+    openModals: openModalsCount(),
+    showsSession: state.ads.interstitialShowsSession,
+    lastTime: state.ads.lastInterstitialTime,
+    levelsSince: state.ads.levelsSinceLastInterstitial,
+    lastRewardedAt: lastRewardedClose,
+    gardenMilestoneShows: sessionShows.garden_milestone,
+    busy
+  }, now);
 }
 
 export async function showInterstitial(source) {
@@ -303,6 +336,7 @@ export async function showInterstitial(source) {
   Sound.duck(false);
   busy = false;
   if (ok) {
+    shows.interstitial += 1;
     state.ads.lastInterstitialTime = Date.now();
     state.ads.lastInterstitialLevel = state.level;
     state.ads.levelsSinceLastInterstitial = 0;

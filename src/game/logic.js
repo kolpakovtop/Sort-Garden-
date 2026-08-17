@@ -172,7 +172,8 @@ function applyPour(tubes, move) {
   return next;
 }
 
-export function solve(board, budget = 45000) {
+// `avoid` forbids the very first move from undoing a move already played
+export function solve(board, budget = 45000, avoid = null) {
   const capacity = board.capacity;
   const seen = new Set();
   let nodes = 0;
@@ -192,7 +193,7 @@ export function solve(board, budget = 45000) {
     return null;
   }
 
-  return dfs(board.tubes.map((t) => t.slice()), 0, null);
+  return dfs(board.tubes.map((t) => t.slice()), 0, avoid);
 }
 
 export function isSolvable(board, budget = 45000) {
@@ -203,6 +204,7 @@ export function isSolvable(board, budget = 45000) {
 // and cached against the state it expects next, so consecutive hints keep
 // moving forward instead of undoing each other.
 let plan = { key: null, moves: [] };
+let lastHint = null;
 
 function moveScore(board, from, to) {
   const src = board.tubes[from];
@@ -239,10 +241,12 @@ export function findBestMove(board) {
     const next = cloneBoard(board);
     makeMove(next, head.from, head.to);
     plan = { key: orderedKey(next.tubes), moves: plan.moves.slice(1) };
+    lastHint = head;
     return head;
   }
 
-  const path = solve(board, 30000);
+  // a fresh plan must not open by undoing the move the player just made
+  const path = solve(board, 30000, lastHint);
   if (path && path.length) {
     const moves = [];
     for (const pour of path) {
@@ -252,11 +256,14 @@ export function findBestMove(board) {
     const next = cloneBoard(board);
     makeMove(next, head.from, head.to);
     plan = { key: orderedKey(next.tubes), moves: moves.slice(1) };
+    lastHint = head;
     return head;
   }
 
   plan = { key: null, moves: [] };
-  return greedyMove(board);
+  const fallback = greedyMove(board);
+  lastHint = fallback;
+  return fallback;
 }
 
 export function safeShuffle(board) {

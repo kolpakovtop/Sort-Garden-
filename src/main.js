@@ -5,7 +5,9 @@ import * as Sound from './core/audio.js';
 import * as Ads from './core/ads.js';
 import { initRouter, go, current } from './core/router.js';
 import { mountScene } from './ui/scene.js';
+import * as Meta from './game/meta.js';
 import { applyTheme, ensureTasks, markSeen } from './game/meta.js';
+import { installDebug } from './core/debug.js';
 import { LevelScreen } from './screens/level.js';
 import {
   BootScreen, MenuScreen, ResultScreen, GardenScreen,
@@ -30,6 +32,7 @@ initRouter(document.getElementById('app'), {
   settings: SettingsScreen
 });
 
+installDebug({ state, persist, ads: Ads, meta: Meta, router: { go } });
 track('app_start', { level: state.level, coins: state.coins });
 go('boot');
 Ads.init();

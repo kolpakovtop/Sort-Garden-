@@ -171,12 +171,16 @@ export function claimDaily() {
 
 const OFFLINE_CAP_MS = 2 * 60 * 60 * 1000;
 
+// pure: 1 coin per decoration per 10 minutes, capped at 2 hours
+export function offlineCoinsFor(decorCount, elapsedMs) {
+  if (!decorCount) return 0;
+  const elapsed = Math.min(OFFLINE_CAP_MS, Math.max(0, elapsedMs));
+  return Math.floor(elapsed / (10 * 60 * 1000)) * decorCount;
+}
+
 export function offlineCoins() {
-  const decor = state.meta.ownedDecor.length;
-  if (!decor) return 0;
   const last = state.offline.lastSeenTime || Date.now();
-  const elapsed = Math.min(OFFLINE_CAP_MS, Math.max(0, Date.now() - last));
-  return Math.floor(elapsed / (10 * 60 * 1000)) * decor;
+  return offlineCoinsFor(state.meta.ownedDecor.length, Date.now() - last);
 }
 
 export function markSeen() {
