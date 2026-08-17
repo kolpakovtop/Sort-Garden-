@@ -107,48 +107,80 @@ export function LevelScreen() {
 
   /* ---------------- rendering ---------------- */
 
+  // Jar and piece nodes live for the whole level: moves reparent the real
+  // element, everything else is a class toggle. Nothing here rebuilds the board.
+  const reduced = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function makeItem(colorId) {
+    const color = COLOR_BY_ID[colorId];
+    return el('div', {
+      class: 'item',
+      'data-color': colorId,
+      style: { background: color ? color.hex : '#ccc' },
+      html: `<span class="icon">${icon(color ? color.sym : 'info')}</span>`
+    });
+  }
+
+  const makeSlot = () => el('div', { class: 'tube__slot' });
+
   function tubeNode(items, index) {
-    const node = el('button', {
-      type: 'button',
-      class: 'tube',
-      'aria-label': `${t('booster.tube')} ${index + 1}: ${items.length}`
-    });
-    items.forEach((colorId, slot) => {
-      const color = COLOR_BY_ID[colorId];
-      const item = el('div', {
-        class: 'item' + (slot === items.length - 1 && index === lastDropTube ? ' item--drop' : ''),
-        style: { background: color ? color.hex : '#ccc' },
-        html: `<span class="icon">${icon(color ? color.sym : 'info')}</span>`
-      });
-      node.appendChild(item);
-    });
-    for (let i = items.length; i < board.capacity; i++) {
-      node.appendChild(el('div', { class: 'tube__slot' }));
-    }
-    if (items.length === board.capacity && items.every((c) => c === items[0])) node.classList.add('tube--done');
-    if (board.selectedTube === index) node.classList.add('tube--selected');
-    if (hint && hint.from === index) node.classList.add('tube--hint');
-    if (hint && hint.to === index) node.classList.add('tube--target');
-    if (tutorialStep === 0 && hint && hint.from !== index && hint.to !== index) node.classList.add('tube--dim');
-    if (tutorialStep === 1 && hint && hint.to !== index && board.selectedTube !== index) node.classList.add('tube--dim');
+    const node = el('button', { type: 'button', class: 'tube' });
+    items.forEach((colorId) => node.appendChild(makeItem(colorId)));
+    for (let i = items.length; i < board.capacity; i++) node.appendChild(makeSlot());
     node.addEventListener('click', () => onTube(index));
+    node.addEventListener('pointerdown', () => { if (!busy && !finished) node.classList.add('pressing'); });
+    const release = () => node.classList.remove('pressing');
+    node.addEventListener('pointerup', release);
+    node.addEventListener('pointerleave', release);
+    node.addEventListener('pointercancel', release);
     return node;
   }
 
-  let lastDropTube = -1;
+  function itemsOf(node) { return node.querySelectorAll(':scope > .item'); }
+  function slotsOf(node) { return node.querySelectorAll(':scope > .tube__slot'); }
+
+  function isComplete(index) {
+    const tube = board.tubes[index];
+    return tube.length === board.capacity && tube.every((c) => c === tube[0]);
+  }
+
+  // classes only — never touches the node tree
+  function syncTubes() {
+    board.tubes.forEach((tube, i) => {
+      const node = boardEl.children[i];
+      if (!node) return;
+      node.classList.toggle('selected', board.selectedTube === i);
+      node.classList.toggle('tube--hint', !!hint && hint.from === i);
+      node.classList.toggle('tube--target', !!hint && hint.to === i);
+      const dim = (tutorialStep === 0 && hint && hint.from !== i && hint.to !== i)
+        || (tutorialStep === 1 && hint && hint.to !== i && board.selectedTube !== i);
+      node.classList.toggle('tube--dim', !!dim);
+      if (isComplete(i) && !node.classList.contains('done')) {
+        node.classList.add('done', 'settle');
+        onceAnimationEnd(node, () => node.classList.remove('settle'));
+      } else if (!isComplete(i)) {
+        node.classList.remove('done');
+      }
+      node.setAttribute('aria-label', `${t('booster.tube')} ${i + 1}: ${tube.length}`);
+    });
+  }
+
+  function onceAnimationEnd(node, fn) {
+    const handler = (e) => {
+      if (e.target !== node) return;
+      node.removeEventListener('animationend', handler);
+      fn();
+    };
+    node.addEventListener('animationend', handler);
+    setTimeout(() => { node.removeEventListener('animationend', handler); fn(); }, 600);
+  }
 
   function renderBoard() {
     boardEl.classList.toggle('board--tight', board.tubes.length > 7);
     boardEl.classList.toggle('board--dense', board.tubes.length > 9);
     boardEl.replaceChildren(...board.tubes.map((tube, i) => tubeNode(tube, i)));
+    syncTubes();
     sizeShelf();
-  }
-
-  // swap a single jar in place instead of rebuilding the whole board
-  function patchTube(index) {
-    const old = boardEl.children[index];
-    if (!old) { renderBoard(); return; }
-    boardEl.replaceChild(tubeNode(board.tubes[index], index), old);
   }
 
   function sizeShelf() {
@@ -168,17 +200,25 @@ export function LevelScreen() {
     });
   }
 
+  const movesValue = el('span', { text: String(session.movesLeft) });
+  const coinsValue = el('span', { text: String(state.coins) });
+  movesChip.replaceChildren(el('span', { class: 'icon', html: icon('moves') }), movesValue);
+  coinsChip.replaceChildren(el('span', { class: 'icon', html: icon('coin') }), coinsValue);
+
+  function pulse(node) {
+    node.classList.remove('chip--pulse');
+    void node.offsetWidth;
+    node.classList.add('chip--pulse');
+    onceAnimationEnd(node, () => node.classList.remove('chip--pulse'));
+  }
+
   function renderTop() {
-    movesChip.replaceChildren(
-      el('span', { class: 'icon', html: icon('moves') }),
-      el('span', { text: String(session.movesLeft) })
-    );
+    const moves = String(session.movesLeft);
+    if (movesValue.textContent !== moves) { movesValue.textContent = moves; pulse(movesChip); }
     movesChip.classList.toggle('chip--warn', session.movesLeft <= 10 && session.movesLeft > 5);
     movesChip.classList.toggle('chip--danger', session.movesLeft <= 5);
-    coinsChip.replaceChildren(
-      el('span', { class: 'icon', html: icon('coin') }),
-      el('span', { text: String(state.coins) })
-    );
+    const coins = String(state.coins);
+    if (coinsValue.textContent !== coins) { coinsValue.textContent = coins; pulse(coinsChip); }
   }
 
   function boosterButton({ kind, iconName, labelKey, onClick, count, reward, tone = 'green' }) {
@@ -222,7 +262,15 @@ export function LevelScreen() {
     );
   }
 
+  // state-only update: no node is recreated, so CSS transitions survive
   function refresh() {
+    renderTop();
+    renderBoosters();
+    syncTubes();
+  }
+
+  // structural change (level start, extra jar, shuffle) — rebuild is expected
+  function rebuild() {
     renderTop();
     renderBoard();
     renderBoosters();
@@ -252,7 +300,7 @@ export function LevelScreen() {
     } else if (tutorialStep === 1) {
       showCoach(t('tutorial.step2'), true);
     }
-    renderBoard();
+    syncTubes();
   }
 
   function finishTutorial(withReward) {
@@ -263,7 +311,7 @@ export function LevelScreen() {
     state.tutorialStep = 3;
     persist();
     clearCoach();
-    renderBoard();
+    syncTubes();
     track(withReward === true ? 'tutorial_complete' : 'tutorial_skip', { step: wasStep });
   }
 
@@ -293,9 +341,10 @@ export function LevelScreen() {
     Sound.play('invalid');
     const node = boardEl.children[index];
     if (!node) return;
-    node.classList.remove('tube--shake');
-    void node.offsetWidth;
-    node.classList.add('tube--shake');
+    node.classList.remove('shake');
+    void node.offsetWidth; // restart the animation on the same node
+    node.classList.add('shake');
+    onceAnimationEnd(node, () => node.classList.remove('shake'));
   }
 
   function onTube(index) {
@@ -308,6 +357,7 @@ export function LevelScreen() {
       if (!board.tubes[index].length) { invalid(index); return; }
       board.selectedTube = index;
       Sound.play('tap');
+      syncTubes();
       if (tutorialStep === 0) {
         tutorialStep = 1;
         const best = findBestMove(board);
@@ -321,14 +371,13 @@ export function LevelScreen() {
         tutorialTick();
         return;
       }
-      renderBoard();
       return;
     }
 
     if (selected === index) {
       board.selectedTube = null;
       Sound.play('tap');
-      renderBoard();
+      syncTubes();
       return;
     }
 
@@ -336,102 +385,79 @@ export function LevelScreen() {
     doMove(selected, index);
   }
 
-  const reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  // Three phases (lift → arc → land), transform/opacity only, ≤300ms total.
-  function animateFlight(from, to, colorId, done) {
-    if (reducedMotion()) { done(); return; }
+  // FLIP: the piece is reparented first, then animated from where it used to be
+  // back to its new home. One WAAPI animation, no phase timers, no clones.
+  function animateMove(from, to, onLanded) {
     const srcTube = boardEl.children[from];
     const dstTube = boardEl.children[to];
-    if (!srcTube || !dstTube) { done(); return; }
-    const srcItems = srcTube.querySelectorAll('.item');
-    const srcItem = srcItems[srcItems.length - 1];
-    if (!srcItem) { done(); return; }
-    const srcRect = srcItem.getBoundingClientRect();
+    if (!srcTube || !dstTube) { onLanded(); return; }
+    const srcItems = itemsOf(srcTube);
+    const item = srcItems[srcItems.length - 1];
+    if (!item) { onLanded(); return; }
 
-    // the slot the piece will occupy: last empty slot of the destination jar
-    const slots = dstTube.querySelectorAll('.tube__slot');
-    const targetSlot = slots[slots.length - 1];
-    const dstRect = (targetSlot || dstTube).getBoundingClientRect();
-    if (targetSlot) targetSlot.classList.add('tube__slot--target');
+    const dstSlots = slotsOf(dstTube);
+    const targetSlot = dstSlots[dstSlots.length - 1];
+    dstTube.classList.add('target-hint'); // stays through the flight, unlike the slot itself
 
-    const color = COLOR_BY_ID[colorId];
-    const clone = document.createElement('div');
-    clone.className = 'flying-item';
-    clone.style.left = `${srcRect.left}px`;
-    clone.style.top = `${srcRect.top}px`;
-    clone.style.width = `${srcRect.width}px`;
-    clone.style.height = `${srcRect.height}px`;
-    if (color) clone.style.background = color.hex;
-    clone.innerHTML = `<span class="icon">${icon(color ? color.sym : 'info')}</span>`;
-    document.body.appendChild(clone);
-    srcItem.classList.add('item--hidden');
+    // read first…
+    const before = item.getBoundingClientRect();
 
-    const dx = dstRect.left - srcRect.left;
-    const dy = dstRect.top - srcRect.top;
-    const arc = Math.min(60, Math.abs(dx) * 0.22 + 14);
+    // …then write: the piece changes parent, jars swap a slot each
+    const firstDstSlot = dstSlots[0];
+    if (firstDstSlot) dstTube.insertBefore(item, firstDstSlot);
+    else dstTube.appendChild(item);
+    if (targetSlot) targetSlot.remove();
+    srcTube.appendChild(makeSlot());
 
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      if (targetSlot) targetSlot.classList.remove('tube__slot--target');
-      clone.remove();
-      done();
+    const cleanup = () => {
+      item.style.transform = '';
+      item.classList.remove('animating');
+      dstTube.classList.remove('target-hint');
+      onLanded();
     };
 
-    if (typeof clone.animate !== 'function') { finish(); return; }
+    if (reduced() || typeof item.animate !== 'function') {
+      item.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 120 });
+      cleanup();
+      return;
+    }
 
-    const lift = clone.animate(
-      [{ transform: 'translate(0,0) scale(1)' }, { transform: 'translateY(-8px) scale(1.06)' }],
-      { duration: 90, easing: 'cubic-bezier(.22,.9,.3,1)', fill: 'forwards' }
-    );
-    lift.onfinish = () => {
-      const fly = clone.animate([
-        { transform: 'translateY(-8px) scale(1.06)' },
-        { transform: `translate(${dx / 2}px, ${dy - arc - 8}px) scale(1.04)`, offset: 0.5 },
-        { transform: `translate(${dx}px, ${dy}px) scale(1)` }
-      ], { duration: 180, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
-      fly.onfinish = finish;
-      fly.oncancel = finish;
-    };
-    lift.oncancel = finish;
-    setTimeout(finish, 420); // safety net if the animation never resolves
-  }
+    const after = item.getBoundingClientRect();
+    const dx = before.left - after.left;
+    const dy = before.top - after.top;
 
-  function markComplete(index) {
-    const node = boardEl.children[index];
-    if (!node) return;
-    node.classList.add('tube--complete', 'tube--done');
-    setTimeout(() => node.classList.remove('tube--complete'), 320);
-  }
+    item.classList.add('animating');
+    item.style.transform = `translate(${dx}px, ${dy}px)`;
 
-  function isTubeComplete(index) {
-    const tube = board.tubes[index];
-    if (tube.length !== board.capacity) return false;
-    const c = tube[0];
-    return tube.every((x) => x === c);
+    requestAnimationFrame(() => {
+      const anim = item.animate([
+        { transform: `translate(${dx}px, ${dy}px) scale(1)`, easing: 'cubic-bezier(.22,.9,.3,1)' },
+        { transform: `translate(${dx}px, ${dy - 12}px) scale(1.06)`, offset: 0.3, easing: 'cubic-bezier(.4,0,.2,1)' },
+        { transform: 'translate(0, -6px) scale(1.06)', offset: 0.75, easing: 'cubic-bezier(.34,1.56,.64,1)' },
+        { transform: 'translate(0, 0) scale(1.06, .92)', offset: 0.88, easing: 'ease-out' },
+        { transform: 'translate(0, 0) scale(1)' }
+      ], { duration: 260 });
+      anim.onfinish = cleanup;
+      anim.oncancel = cleanup;
+    });
   }
 
   function doMove(from, to) {
+    if (busy) return;
     busy = true;
-    const colorId = board.tubes[from][board.tubes[from].length - 1];
-    animateFlight(from, to, colorId, () => {
-      makeMove(board, from, to);
-      history.push({ from, to });
-      session.movesLeft -= 1;
-      board.selectedTube = null;
-      hint = null;
-      lastDropTube = to;
-      Sound.play('move');
-      const completed = isTubeComplete(to);
-      // only the two jars that changed are re-rendered
-      patchTube(from);
-      patchTube(to);
-      renderTop();
-      renderBoosters();
-      lastDropTube = -1;
-      if (completed) markComplete(to);
+    // model updates immediately; the DOM piece animates into its new jar
+    makeMove(board, from, to);
+    history.push({ from, to });
+    session.movesLeft -= 1;
+    board.selectedTube = null;
+    hint = null;
+    renderTop();
+    renderBoosters();
+    syncTubes();
+
+    animateMove(from, to, () => {
+      Sound.play('move'); // sounds on landing, not on the tap
+      syncTubes();
       busy = false;
       afterMove();
     });
@@ -565,9 +591,9 @@ export function LevelScreen() {
 
   function showHintMove(move) {
     hint = move;
-    renderBoard();
+    syncTubes();
     if (hintTimer) clearTimeout(hintTimer);
-    hintTimer = setTimeout(() => { hint = null; renderBoard(); }, 2600);
+    hintTimer = setTimeout(() => { hint = null; syncTubes(); }, 2600);
   }
 
   function useHint() {
@@ -586,13 +612,19 @@ export function LevelScreen() {
   }
 
   function doUndo() {
+    if (busy) return;
     if (!history.length) { toast(t('booster.noUndo')); return; }
+    const last = history[history.length - 1];
+    busy = true;
     undoMove(board, history);
     session.movesLeft += 1; // undo gives the move back
     session.undoUsed += 1;
     board.selectedTube = null;
     hint = null;
-    refresh();
+    renderTop();
+    renderBoosters();
+    syncTubes();
+    animateMove(last.to, last.from, () => { syncTubes(); busy = false; });
   }
 
   function useUndo() {
@@ -617,7 +649,7 @@ export function LevelScreen() {
     addTube(board);
     noteBoosterUse('tube');
     toast(t('booster.tubeAdded'));
-    refresh();
+    rebuild();
   }
 
   function doShuffle() {
@@ -626,7 +658,7 @@ export function LevelScreen() {
       board.selectedTube = null;
       hint = null;
       toast(t('booster.shuffled'));
-      refresh();
+      rebuild();
     } else {
       toast(t('reward.fail'));
     }
@@ -746,7 +778,7 @@ export function LevelScreen() {
 
   /* ---------------- start ---------------- */
 
-  refresh();
+  rebuild();
 
   if (session.prelevelBooster) {
     toast(`${t('prelevel.ready')}: ${t(`booster.${session.prelevelBooster}`)}`);

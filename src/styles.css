@@ -212,6 +212,7 @@ p { margin: 0; color: var(--muted); }
   font-weight: 600;
   cursor: pointer;
   user-select: none;
+  touch-action: manipulation;
   text-align: center;
   box-shadow: var(--shadow-card);
   transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out),
@@ -422,8 +423,13 @@ p { margin: 0; color: var(--muted); }
   border: 1px solid var(--line);
   border-radius: 16px;
   cursor: pointer;
+  touch-action: manipulation;
   box-shadow: inset 0 -4px 8px rgba(51, 48, 43, 0.05), var(--shadow-card);
-  transition: transform var(--dur-med) var(--ease-spring), box-shadow var(--dur-med) var(--ease-out);
+  /* declared on the base class so entering AND leaving a state both animate */
+  transition:
+    transform 180ms var(--ease-spring),
+    box-shadow 180ms var(--ease-out),
+    border-color 180ms var(--ease-out);
 }
 .board--tight .tube { --cell: clamp(36px, max(8.4vmin, 10vw), 66px); }
 .board--dense .tube { --cell: clamp(30px, max(6.8vmin, 8vw), 54px); }
@@ -435,7 +441,7 @@ p { margin: 0; color: var(--muted); }
   box-shadow: inset 0 -2px 3px rgba(51, 48, 43, .05);
   transition: background-color var(--dur-med) var(--ease-out);
 }
-.tube__slot--target { background: color-mix(in srgb, var(--accent) 12%, var(--surface-2)); }
+.tube.target-hint .tube__slot { background: color-mix(in srgb, var(--accent) 8%, var(--surface-2)); }
 
 .item {
   position: relative;
@@ -445,35 +451,28 @@ p { margin: 0; color: var(--muted); }
   color: #fff;
   box-shadow: inset 0 2px 0 rgba(255, 255, 255, .25), inset 0 -3px 0 rgba(0, 0, 0, .09);
   animation: item-pop var(--dur-med) var(--ease-spring);
+  transition: transform 180ms var(--ease-spring);
+  touch-action: manipulation;
 }
 .item .icon { width: 45%; height: 45%; opacity: .9; }
-.item--hidden { visibility: hidden; }
-.item--land { animation: item-land var(--dur-fast) var(--ease-spring); }
+.item.animating { will-change: transform; z-index: 2; }
 
-.tube:hover:not(.tube--selected) { transform: translateY(-2px); }
-.tube--selected {
-  transform: translateY(-6px);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow-lift);
+@media (hover: hover) {
+  .tube:hover:not(.selected):not(.pressing) { transform: translateY(-2px); }
 }
+.tube.pressing { transform: scale(.965); transition-duration: 80ms; }
+.tube.selected {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 24px rgba(51, 48, 43, .10), 0 0 0 3px rgba(94, 156, 111, .35);
+}
+.tube.selected .item:last-child { transform: translateY(-4px); }
 .tube--hint { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent); animation: hint-pulse 1.4s var(--ease-inout) 2; }
 .tube--target { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
 .tube--dim { opacity: 0.42; }
-.tube--shake { animation: shake 220ms var(--ease-out); }
-.tube--complete { animation: tube-complete 300ms var(--ease-spring); }
-.tube--done { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.tube.shake { animation: shake 220ms var(--ease-out); }
+.tube.done { border-color: rgba(94, 156, 111, .45); }
+.tube.settle { animation: settle 260ms var(--ease-spring); }
 .tube--bounce { animation: tube-bounce 420ms var(--ease-spring); }
-
-.flying-item {
-  position: fixed;
-  border-radius: 13px;
-  color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .25), inset 0 -3px 0 rgba(0, 0, 0, .09), 0 10px 22px rgba(51, 48, 43, .18);
-  pointer-events: none;
-  z-index: 30;
-  will-change: transform;
-}
-.flying-item .icon { width: 45%; height: 45%; opacity: .9; }
 
 /* ---------- boosters ---------- */
 
@@ -499,6 +498,7 @@ p { margin: 0; color: var(--muted); }
   font-weight: 600;
   cursor: pointer;
   user-select: none;
+  touch-action: manipulation;
   overflow: visible;
   box-shadow: var(--shadow-card);
   transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
@@ -708,15 +708,14 @@ p { margin: 0; color: var(--muted); }
 @keyframes screen-out { to { opacity: 0; } }
 @keyframes modal-in { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
 @keyframes item-pop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
-@keyframes item-land { 0% { transform: scale(1.04, .94); } 100% { transform: scale(1); } }
-@keyframes shake { 0% { transform: translateX(0); } 20% { transform: translateX(-4px); } 40% { transform: translateX(4px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(3px); } 100% { transform: translateX(0); } }
-@keyframes tube-complete { 0% { transform: scale(.96); } 100% { transform: scale(1); } }
+@keyframes shake { 0% { transform: translateX(0); } 25% { transform: translateX(-4px); } 50% { transform: translateX(4px); } 75% { transform: translateX(-3px); } 100% { transform: translateX(0); } }
+@keyframes settle { 0% { transform: scale(.96); } 100% { transform: scale(1); } }
 @keyframes tube-bounce { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-10px); } }
 @keyframes hint-pulse { 0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent); } 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 45%, transparent); } }
 @keyframes toast-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(8px); } }
 @keyframes pulse { 0%, 100% { opacity: .3; } 50% { opacity: .85; } }
-@keyframes chip-pulse { 0% { transform: scale(1); } 45% { transform: scale(1.15); } 100% { transform: scale(1); } }
+@keyframes chip-pulse { 0% { transform: scale(1); } 45% { transform: scale(1.12); } 100% { transform: scale(1); } }
 @keyframes cloud-drift { from { transform: translateX(-20vw); } to { transform: translateX(120vw); } }
 @keyframes sun-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
 @keyframes flower-sway { from { transform: rotate(-3deg); } to { transform: rotate(3deg); } }
@@ -787,4 +786,6 @@ p { margin: 0; color: var(--muted); }
   }
   .cloud, .flower, .cat__tail, .cat__breath, .cat__eye, .scene__sun { animation: none !important; }
   .petals { display: none; }
+  .tube, .tube.pressing, .tube.selected, .tube:hover { transform: none !important; }
+  .tube.shake, .tube.settle { animation: none !important; }
 }
