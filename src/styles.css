@@ -432,6 +432,26 @@ p { margin: 0; color: var(--muted); }
   h1 { font-size: 26px; }
 }
 
+@media (max-height: 500px) and (orientation: landscape) {
+  .shell { padding-top: 8px; padding-bottom: 8px; gap: 8px; max-width: 720px; }
+  .menu-hero { padding: 2px 0 0; }
+  .tube { --slot: clamp(22px, 4.2vw, 30px); }
+  .board--tight .tube { --slot: clamp(20px, 3.6vw, 26px); }
+  .board { gap: 6px 8px; padding: 0; }
+  .coach { padding: 8px 12px; }
+  .boosters { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .booster { min-height: 52px; font-size: 12px; }
+}
+
+@media (max-width: 359px) {
+  .shell { padding-left: 12px; padding-right: 12px; }
+  .menu-grid { gap: 10px; }
+  .menu-grid .btn { padding: 6px 8px; font-size: 16px; gap: 6px; min-height: 70px; }
+  .menu-grid .btn .icon { width: 20px; height: 20px; }
+  .chip { padding: 8px 10px; font-size: 15px; }
+  h1 { font-size: 26px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
