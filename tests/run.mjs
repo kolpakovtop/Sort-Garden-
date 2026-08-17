@@ -335,12 +335,18 @@ test('A6', 'vite base is relative', () => {
 });
 
 test('A7', 'ads go through AdService only', () => {
+  // ads.js is the ad service; platform.js is the single SDK owner it delegates to
+  const allowed = ['src/core/ads.js', 'src/core/platform.js'];
   const offenders = [];
-  for (const f of FILES.filter((x) => x.endsWith('.js') && !x.endsWith('ads.js'))) {
+  for (const f of FILES.filter((x) => x.endsWith('.js') && !allowed.includes(rel(x)))) {
     const body = read(f);
     if (/\b(YaGames|CrazyGames\.SDK|bridge\.advertisement|showRewardedVideo|showFullscreenAdv)\b/.test(body)) offenders.push(rel(f));
   }
-  assert.equal(offenders.length, 0, offenders.join(', '));
+  assert.equal(offenders.length, 0, `SDK touched outside the ad layer: ${offenders.join(', ')}`);
+  // screens may never reach past AdService for an ad
+  for (const f of FILES.filter((x) => x.includes('/screens/'))) {
+    assert.ok(!/platformAds|\.adv\./.test(read(f)), `${rel(f)} calls the SDK directly`);
+  }
   // every rewarded call site must be awaited and branch on the result
   const screens = read(join(ROOT, 'src/screens/screens.js')) + read(join(ROOT, 'src/screens/level.js'));
   const calls = screens.match(/showRewarded\('[a-z_]+'\)/g) || [];

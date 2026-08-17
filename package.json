@@ -9,7 +9,10 @@
     "build:single": "vite build && node scripts/inline.mjs",
     "preview": "vite preview",
     "test:unit": "node tests/run.mjs",
-    "test:e2e": "npm --prefix e2e run e2e"
+    "test:e2e": "npm --prefix e2e run e2e",
+    "build:yandex": "vite build && node scripts/inline.mjs && node scripts/pack-yandex.mjs",
+    "store:assets": "node scripts/store-assets.mjs",
+    "store:check": "node scripts/store-check.mjs store"
   },
   "devDependencies": {
     "vite": "^5.4.11"

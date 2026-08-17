@@ -1,12 +1,13 @@
 import { test, expect } from '@playwright/test';
-import { boot, startLevel, playMove, boardState } from './helpers.mjs';
+import { boot, startLevel, playMove, boardState, SDK_HOST } from './helpers.mjs';
 
 // P2: on the built bundle nothing may leave the local origin
 test('P2 dist build talks to nobody but the local server', async ({ page, baseURL }) => {
   const external = [];
   page.on('request', (req) => {
     const url = req.url();
-    if (!url.startsWith(baseURL) && !url.startsWith('data:') && !url.startsWith('blob:')) external.push(url);
+    // the portal SDK is the one allowed outside call; nothing else may leave
+    if (!url.startsWith(baseURL) && !url.startsWith('data:') && !url.startsWith('blob:') && !url.includes(SDK_HOST)) external.push(url);
   });
   const errors = await boot(page);
 

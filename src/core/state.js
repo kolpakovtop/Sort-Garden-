@@ -1,5 +1,6 @@
 import * as Save from './save.js';
 import { track } from './analytics.js';
+import { cloudSave, cloudLoad } from './platform.js';
 
 export function defaultSession(levelNumber = 1) {
   return {
@@ -23,6 +24,7 @@ export function defaultSession(levelNumber = 1) {
 export function defaultState() {
   return {
     version: Save.SAVE_VERSION,
+    savedAt: 0,
     screen: 'boot',
     level: 1,
     coins: 0,
@@ -72,8 +74,40 @@ export function emit() {
   listeners.forEach((fn) => fn(state));
 }
 
+let cloudTimer = null;
+
 export function persist() {
   Save.save(state);
+  // the cloud write is debounced: the portal quota is per-call, not per-byte
+  if (cloudTimer) clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(() => {
+    cloudTimer = null;
+    try { cloudSave(JSON.stringify(state)); } catch (e) { /* offline: local copy stands */ }
+  }, 2000);
+}
+
+export function flushCloud() {
+  if (cloudTimer) { clearTimeout(cloudTimer); cloudTimer = null; }
+  try { return cloudSave(JSON.stringify(state)); } catch (e) { return Promise.resolve(false); }
+}
+
+// Cloud wins only when it is genuinely newer than the local copy.
+export async function adoptCloudSave() {
+  let raw = null;
+  try { raw = await cloudLoad(); } catch (e) { return false; }
+  const data = Save.parseCloud(raw);
+  if (!data) return false;
+  const localAt = Number(state.savedAt) || 0;
+  const cloudAt = Number(data.savedAt) || 0;
+  if (cloudAt <= localAt) return false;
+  state = merge(defaultState(), data);
+  state.board = null;
+  state.levelSession = defaultSession(state.level);
+  state.screen = 'boot';
+  if (!Number.isFinite(state.level) || state.level < 1) state.level = 1;
+  if (!Number.isFinite(state.coins) || state.coins < 0) state.coins = 0;
+  emit();
+  return true;
 }
 
 function isPlain(v) {

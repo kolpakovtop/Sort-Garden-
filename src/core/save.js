@@ -24,6 +24,7 @@ export function storageAvailable() {
 export function save(state) {
   let raw;
   try {
+    state.savedAt = Date.now();
     raw = JSON.stringify(state);
   } catch (e) {
     return false;
@@ -77,4 +78,16 @@ export function migrate(data) {
   }
   data.version = SAVE_VERSION;
   return data;
+}
+
+// Cloud payloads go through the same validation as local ones.
+export function parseCloud(raw) {
+  if (!raw) return null;
+  try {
+    const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+    return migrate(data);
+  } catch (e) {
+    return null;
+  }
 }

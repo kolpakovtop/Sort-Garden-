@@ -92,6 +92,9 @@ body {
   line-height: 1.35;
   letter-spacing: 0.01em;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
   overflow-x: hidden;
@@ -308,7 +311,7 @@ p { margin: 0; color: var(--muted); }
   min-height: var(--hud-h);
 }
 .hud--center { justify-content: center; }
-.hud__title { font-size: clamp(18px, 2.3vmin, 24px); font-weight: 800; }
+.hud__title { font-size: clamp(16px, 2.3vmin, 24px); font-weight: 800; }
 .hud__side { display: flex; align-items: center; gap: var(--s2); }
 
 .chip {
@@ -768,6 +771,10 @@ p { margin: 0; color: var(--muted); }
 }
 
 @media (max-width: 400px) {
+  .hud { gap: var(--s2); }
+  .hud__title { font-size: 15px; }
+  .hud .chip { padding: var(--s2) 9px; font-size: 14px; gap: 5px; }
+  .hud .chip .icon { width: 18px; height: 18px; }
   .boosters { gap: 6px; }
   .booster__label { font-size: 10px; letter-spacing: -0.02em; }
 }

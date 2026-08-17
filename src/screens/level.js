@@ -3,8 +3,9 @@ import { t } from '../core/i18n.js';
 import { track } from '../core/analytics.js';
 import * as Sound from '../core/audio.js';
 import * as Ads from '../core/ads.js';
-import { go, later, every, cancel, onLeave } from '../core/router.js';
+import { go, later, every, cancel, onLeave, current } from '../core/router.js';
 import { registerLevel, clearLevel } from '../core/debug.js';
+import { reportGameplay } from '../core/platform.js';
 import { el, Button, IconButton, Chip, Modal, toast, TopBar } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import {
@@ -100,9 +101,12 @@ export function LevelScreen() {
   }
   document.addEventListener('keydown', onKey);
 
+  reportGameplay(true);
+
   onLeave(() => {
     if (hintTimer) clearTimeout(hintTimer);
     document.removeEventListener('keydown', onKey);
+    reportGameplay(false);
     clearLevel();
     state.board = null;
   });
@@ -516,6 +520,7 @@ export function LevelScreen() {
 
   function win() {
     finished = true;
+    reportGameplay(false);
     const stars = starsFor(session.movesLeft, session.movesStart);
     const coins = coinsFor(session.levelNumber, stars, hasCat('ryzhik'));
     state.starsTotal += stars;
@@ -536,6 +541,7 @@ export function LevelScreen() {
 
   function outOfMoves() {
     track('level_moves_out', { level: session.levelNumber });
+    reportGameplay(false);
     const modal = Modal({
       title: t('level.movesOut'),
       text: t('level.movesOutText'),
@@ -579,6 +585,7 @@ export function LevelScreen() {
   }
 
   function stuck() {
+    reportGameplay(false);
     const modal = Modal({
       title: t('level.stuck'),
       text: t('level.stuckText'),
@@ -617,9 +624,11 @@ export function LevelScreen() {
   }
 
   function openPause() {
+    reportGameplay(false);
     const modal = Modal({
       title: t('level.pause'),
       text: t('level.pauseText'),
+      onClose: () => { if (!finished && current() === 'level') reportGameplay(true); },
       actions: [
         { label: t('button.continue'), variant: 'primary' },
         { label: t('button.menu'), variant: 'ghost', onClick: () => go('menu') }

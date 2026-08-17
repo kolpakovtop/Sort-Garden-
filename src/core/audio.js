@@ -147,12 +147,16 @@ export function syncMusic() {
   }
 }
 
+// Used around ads: the portal requires the game to be silent for the video,
+// so the context is suspended, not just turned down.
 export function duck(on) {
   ducked = !!on;
   if (!ctx || !master) return;
   try {
     master.gain.setTargetAtTime(on ? 0.0001 : VOL.master, ctx.currentTime, 0.12);
   } catch (e) { /* ignore */ }
+  if (on) pauseAll();
+  else resumeAll();
   syncMusic();
 }
 

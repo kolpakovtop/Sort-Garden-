@@ -4,6 +4,7 @@ import { t } from './i18n.js';
 import * as Sound from './audio.js';
 import { toast, openModalsCount } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
+import { platformAds, platformName as portalName, reportGameplay, isGameplayActive } from './platform.js';
 
 /* ---------------- reward sources ---------------- */
 
@@ -74,7 +75,7 @@ export function interstitialAllowed(ctx, now = Date.now()) {
 
 function detectPlatform() {
   try {
-    if (window.YaGames) return 'yandex';
+    if (portalName() === 'yandex') return 'yandex';
     if (window.CrazyGames && window.CrazyGames.SDK) return 'crazygames';
     if (window.bridge && window.bridge.advertisement) return 'playgama';
   } catch (e) { /* ignore */ }
@@ -90,40 +91,13 @@ const stub = {
 };
 
 const adapters = {
+  // The Yandex SDK lives in platform.js: one owner for init, ready,
+  // gameplay reporting, cloud saves and ads.
   yandex: {
     name: 'yandex',
-    sdk: null,
-    async init() {
-      this.sdk = await window.YaGames.init();
-      try { await this.sdk.features.LoadingAPI.ready(); } catch (e) { /* optional */ }
-      return true;
-    },
-    rewarded() {
-      return new Promise((resolve) => {
-        let granted = false;
-        try {
-          this.sdk.adv.showRewardedVideo({
-            callbacks: {
-              onRewarded: () => { granted = true; },
-              onClose: () => resolve(granted),
-              onError: () => resolve(false)
-            }
-          });
-        } catch (e) { resolve(false); }
-      });
-    },
-    interstitial() {
-      return new Promise((resolve) => {
-        try {
-          this.sdk.adv.showFullscreenAdv({
-            callbacks: {
-              onClose: (wasShown) => resolve(!!wasShown),
-              onError: () => resolve(false)
-            }
-          });
-        } catch (e) { resolve(false); }
-      });
-    }
+    async init() { return true; },
+    rewarded() { const ads = platformAds(); return ads ? ads.rewarded() : Promise.resolve(false); },
+    interstitial() { const ads = platformAds(); return ads ? ads.interstitial() : Promise.resolve(false); }
   },
 
   crazygames: {
@@ -276,6 +250,8 @@ export async function showRewarded(source) {
   if (!canUseReward(source)) { toast(t('reward.used')); return false; }
   busy = true;
   track('reward_request', { source });
+  const wasPlaying = isGameplayActive();
+  reportGameplay(false);
   Sound.duck(true);
   const close = overlay(t('reward.title'));
   let ok = false;
@@ -286,6 +262,7 @@ export async function showRewarded(source) {
   }
   close();
   Sound.duck(false);
+  if (wasPlaying) reportGameplay(true);
   busy = false;
   lastRewardedClose = Date.now();
   if (ok) {
@@ -324,6 +301,7 @@ export async function showInterstitial(source) {
     return false;
   }
   busy = true;
+  reportGameplay(false); // interstitials only run outside gameplay anyway
   Sound.duck(true);
   const close = overlay(t('interstitial.pause'));
   let ok = false;

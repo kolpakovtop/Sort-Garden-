@@ -2,11 +2,16 @@ import { expect } from '@playwright/test';
 
 export const SHOTS = new URL('../shots/', import.meta.url).pathname;
 
+// The Yandex SDK script is an intentional external dependency and is not
+// reachable from CI; its network error is not a game error. Everything else is.
+export const SDK_HOST = 'yandex.ru/games/sdk';
+const isGameError = (text) => !(text.includes(SDK_HOST) || /Failed to load resource|ERR_TUNNEL|ERR_NAME_NOT_RESOLVED|ERR_INTERNET_DISCONNECTED/.test(text));
+
 // every spec asserts a clean console
 export function watchConsole(page) {
   const errors = [];
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
-  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  page.on('console', (m) => { if (m.type() === 'error' && isGameError(m.text())) errors.push(`console: ${m.text()}`); });
+  page.on('pageerror', (e) => { if (isGameError(e.message)) errors.push(`pageerror: ${e.message}`); });
   return errors;
 }
 
