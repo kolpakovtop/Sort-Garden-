@@ -4,7 +4,7 @@ import { t } from './i18n.js';
 import * as Sound from './audio.js';
 import { toast, openModalsCount } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
-import { platformAds, platformName as portalName, reportGameplay, isGameplayActive } from './platform.js';
+import { platformAds, platformName as portalName, reportGameplay, isGameplayActive, rewardedSupported } from './platform.js';
 
 /* ---------------- reward sources ---------------- */
 
@@ -77,7 +77,7 @@ function detectPlatform() {
   try {
     if (portalName() === 'yandex') return 'yandex';
     if (window.CrazyGames && window.CrazyGames.SDK) return 'crazygames';
-    if (window.bridge && window.bridge.advertisement) return 'playgama';
+    if (portalName() === 'playgama') return 'playgama';
   } catch (e) { /* ignore */ }
   return 'fallback';
 }
@@ -128,44 +128,13 @@ const adapters = {
     }
   },
 
+  // Playgama Bridge lives in platform.js: one owner for init, messages,
+  // storage and ads.
   playgama: {
     name: 'playgama',
-    async init() {
-      try { await window.bridge.initialize(); } catch (e) { /* optional */ }
-      return true;
-    },
-    rewarded() {
-      return new Promise((resolve) => {
-        let granted = false;
-        try {
-          const br = window.bridge;
-          const onState = (s) => {
-            if (s === 'rewarded') granted = true;
-            if (s === 'closed' || s === 'failed') {
-              try { br.advertisement.off('rewarded_state_changed', onState); } catch (e) { /* ignore */ }
-              resolve(granted);
-            }
-          };
-          br.advertisement.on('rewarded_state_changed', onState);
-          br.advertisement.showRewarded();
-        } catch (e) { resolve(false); }
-      });
-    },
-    interstitial() {
-      return new Promise((resolve) => {
-        try {
-          const br = window.bridge;
-          const onState = (s) => {
-            if (s === 'closed' || s === 'failed') {
-              try { br.advertisement.off('interstitial_state_changed', onState); } catch (e) { /* ignore */ }
-              resolve(s === 'closed');
-            }
-          };
-          br.advertisement.on('interstitial_state_changed', onState);
-          br.advertisement.showInterstitial();
-        } catch (e) { resolve(false); }
-      });
-    }
+    async init() { return true; },
+    rewarded() { const ads = platformAds(); return ads ? ads.rewarded() : Promise.resolve(false); },
+    interstitial() { const ads = platformAds(); return ads ? ads.interstitial() : Promise.resolve(false); }
   },
 
   fallback: stub
@@ -204,6 +173,7 @@ export function canUseReward(source) {
   const cfg = REWARD_SOURCES[source];
   if (!cfg) return false;
   if (busy) return false;
+  if (!rewardedSupported()) return false; // the portal cannot show one right now
   const u = usage(source);
   if (cfg.scope === 'level') {
     if (u.level !== state.levelSession.levelNumber) return true;

@@ -13,7 +13,7 @@ export function clearLevel() {
   if (DEBUG) delete hooks.level;
 }
 
-export function installDebug({ state, persist, ads, meta, router }) {
+export function installDebug({ state, persist, ads, meta, router, platform }) {
   if (!DEBUG || typeof window === 'undefined') return;
   window.__SG = {
     get state() { return state; },
@@ -38,6 +38,13 @@ export function installDebug({ state, persist, ads, meta, router }) {
       reset() { ads.resetAdCounts(); }
     },
     canShowInterstitial(now) { return ads.canShowInterstitial('level_complete', now); },
+    portal() { return platform.platformName(); },
+    // raw portal ad call, bypassing the reward limits — for integration tests
+    platformAd(kind) {
+      const portal = platform.platformAds();
+      if (!portal) return Promise.resolve(null);
+      return kind === 'interstitial' ? portal.interstitial() : portal.rewarded();
+    },
 
     setLastSeen(deltaMs) {
       state.offline.lastSeenTime = Date.now() - deltaMs;

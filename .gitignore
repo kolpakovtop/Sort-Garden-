@@ -3,3 +3,5 @@ e2e/.artifacts/
 e2e/node_modules/
 node_modules/
 store/.zipcheck/
+dist-playgama/
+store/.zipcheck-playgama/

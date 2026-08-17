@@ -32,6 +32,147 @@ const web = {
   interstitial: null
 };
 
+// Playgama Bridge v2. The bridge ships inside the archive, so it exists as a
+// global before the game runs; module getters must not be touched before
+// initialize(), which is why detection only looks for the object itself.
+const CLOUD_KEY = 'sort-garden-save';
+
+const playgama = {
+  name: 'playgama',
+  bridge: null,
+
+  async init() {
+    const bridge = window.bridge || window.playgamaBridge;
+    if (!bridge) return false;
+    // Stay on this adapter even if initialize() is slow or fails: the bridge
+    // owns the platform loader, and abandoning it leaves that overlay on top
+    // of the game forever. Every call below is guarded instead.
+    this.bridge = bridge;
+    await withTimeout(
+      Promise.resolve()
+        .then(() => bridge.initialize())
+        .then(() => true)
+        .catch(() => false),
+      INIT_TIMEOUT,
+      false
+    );
+    return true;
+  },
+
+  live() {
+    try { return !!(this.bridge && this.bridge.isInitialized); } catch (e) { return false; }
+  },
+
+  // The bridge owns a full-screen loader it only lifts once the platform
+  // answers. If the portal SDK never loads (ad blocker, dead CDN) that overlay
+  // would sit on top of a perfectly playable game, so it is cleared by hand.
+  clearStuckLoader() {
+    try {
+      const overlay = document.getElementById('loading-overlay');
+      if (overlay) overlay.remove();
+    } catch (e) { /* ignore */ }
+  },
+
+  // sendMessage returns a promise; an unhandled rejection lands in the console
+  // the platform reads, so every call is caught
+  send(message) {
+    if (!this.live()) return;  // touching a module before init only logs noise
+    try {
+      const result = this.bridge.platform.sendMessage(message);
+      if (result && typeof result.catch === 'function') result.catch(() => {});
+    } catch (e) { /* ignore */ }
+  },
+
+  // game_ready lifts the platform loader, so keep trying while the portal SDK
+  // is still coming up rather than losing the signal to a slow network
+  ready() {
+    if (this.live()) { this.send('game_ready'); return; }
+    let tries = 0;
+    const timer = setInterval(() => {
+      if (this.live()) { clearInterval(timer); this.send('game_ready'); return; }
+      tries += 1;
+      if (tries === 2) this.clearStuckLoader(); // ~1s without an answer: the game is already up
+      if (tries > 40) clearInterval(timer);
+    }, 500);
+  },
+  gameplayStart() { this.send('gameplay_started'); },
+  gameplayStop() { this.send('gameplay_stopped'); },
+
+  lang() {
+    if (!this.live()) return null;
+    try { return (this.bridge.platform.language || '').slice(0, 2).toLowerCase() || null; } catch (e) { return null; }
+  },
+
+  async cloudLoad() {
+    if (!this.live()) return null;
+    try {
+      const value = await withTimeout(this.bridge.storage.get(CLOUD_KEY), DATA_TIMEOUT, null);
+      return value || null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  async cloudSave(payload) {
+    if (!this.live()) return false;
+    try {
+      await withTimeout(this.bridge.storage.set(CLOUD_KEY, payload), DATA_TIMEOUT, false);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  // Both formats report completion through an event, never through the call.
+  // Support flags are read at show time: the QA tool enables formats one by one.
+  showAd(kind) {
+    return new Promise((resolve) => {
+      if (!this.live()) { resolve(false); return; }
+      let ad;
+      try { ad = this.bridge.advertisement; } catch (e) { resolve(false); return; }
+      const rewarded = kind === 'rewarded';
+      const supported = rewarded ? ad.isRewardedSupported : ad.isInterstitialSupported;
+      if (!supported) { resolve(false); return; }
+
+      const event = rewarded ? 'rewarded_state_changed' : 'interstitial_state_changed';
+      let granted = false;
+      let done = false;
+      const finish = (value) => {
+        if (done) return;
+        done = true;
+        clearTimeout(guard);
+        try { ad.off(event, onState); } catch (e) { /* ignore */ }
+        resolve(value);
+      };
+      const onState = (state) => {
+        if (state === 'rewarded') granted = true;        // the only signal that pays
+        if (state === 'closed') finish(rewarded ? granted : true);
+        if (state === 'failed') finish(false);
+      };
+      const guard = setTimeout(
+        () => finish(rewarded ? granted : false),
+        rewarded ? AD_TIMEOUT.rewarded : AD_TIMEOUT.interstitial
+      );
+
+      try {
+        ad.on(event, onState);
+        if (rewarded) ad.showRewarded();
+        else ad.showInterstitial();
+      } catch (e) {
+        finish(false);
+      }
+    });
+  },
+
+  rewardedSupported() {
+    if (!this.live()) return false;
+    try { return !!this.bridge.advertisement.isRewardedSupported; } catch (e) { return false; }
+  },
+
+  rewarded() { return this.showAd('rewarded'); },
+  interstitial() { return this.showAd('interstitial'); }
+};
+
 const yandex = {
   name: 'yandex',
   sdk: null,
@@ -132,7 +273,11 @@ let gameplayActive = false;
 
 function detect() {
   if (OVERRIDE === 'web') return web;
-  if (OVERRIDE === 'yandex' || window.YaGames) return yandex;
+  if (OVERRIDE === 'yandex') return yandex;
+  if (OVERRIDE === 'playgama') return playgama;
+  // object presence only — module getters complain before initialize()
+  if (window.bridge || window.playgamaBridge) return playgama;
+  if (window.YaGames) return yandex;
   return web;
 }
 
@@ -185,6 +330,12 @@ export function cloudLoad() {
 
 export function cloudSave(payload) {
   return active.cloudSave(payload);
+}
+
+// Portals enable ad formats independently, so the answer is asked live rather
+// than cached; without a portal the stub grants and the buttons stay usable.
+export function rewardedSupported() {
+  try { return active.rewardedSupported ? active.rewardedSupported() : true; } catch (e) { return true; }
 }
 
 export function platformAds() {

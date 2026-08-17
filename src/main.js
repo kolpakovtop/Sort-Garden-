@@ -4,7 +4,8 @@ import { track } from './core/analytics.js';
 import * as Sound from './core/audio.js';
 import * as Ads from './core/ads.js';
 import { initRouter, go, current } from './core/router.js';
-import { initPlatform, signalReady, reportGameplay, platformLang, platformName } from './core/platform.js';
+import * as Platform from './core/platform.js';
+import { initPlatform, signalReady, reportGameplay, platformLang } from './core/platform.js';
 import { mountScene } from './ui/scene.js';
 import * as Meta from './game/meta.js';
 import { applyTheme, ensureTasks, markSeen } from './game/meta.js';
@@ -51,7 +52,7 @@ async function bootstrap() {
   ensureTasks();
   applyTheme();
 
-  installDebug({ state, persist, ads: Ads, meta: Meta, router: { go } });
+  installDebug({ state, persist, ads: Ads, meta: Meta, router: { go }, platform: Platform });
   await Ads.init();
   track('app_start', { level: state.level, coins: state.coins, portal });
 
@@ -99,5 +100,3 @@ window.addEventListener('pagehide', () => {
   persist();
   flushCloud();
 });
-
-if (platformName() === 'yandex') document.body.classList.add('is-portal');
