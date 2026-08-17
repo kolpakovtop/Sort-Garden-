@@ -75,8 +75,10 @@ export function LevelScreen() {
 
   const root = el('div', { class: 'screen' });
   const movesChip = Chip({ iconName: 'moves', value: session.movesLeft });
-  const coinsChip = Chip({ iconName: 'coin', value: state.coins });
+  const coinsChip = Chip({ iconName: 'coin', value: state.coins, cls: 'chip--coin' });
   const boardEl = el('div', { class: 'board' });
+  const shelfEl = el('div', { class: 'shelf' });
+  const boardWrap = el('div', { class: 'board-wrap' }, [boardEl, shelfEl]);
   const coachHost = el('div');
   const boosterBar = el('div', { class: 'boosters' });
 
@@ -86,7 +88,7 @@ export function LevelScreen() {
     right: el('div', { class: 'row' }, [movesChip, coinsChip])
   }));
   root.appendChild(coachHost);
-  root.appendChild(boardEl);
+  root.appendChild(boardWrap);
   root.appendChild(boosterBar);
 
   onLeave(() => {
@@ -127,6 +129,7 @@ export function LevelScreen() {
 
   function renderBoard() {
     boardEl.classList.toggle('board--tight', board.tubes.length > 7);
+    boardEl.classList.toggle('board--dense', board.tubes.length > 9);
     boardEl.replaceChildren(...board.tubes.map((tube, i) => tubeNode(tube, i)));
   }
 
@@ -135,21 +138,22 @@ export function LevelScreen() {
       el('span', { class: 'icon', html: icon('moves') }),
       el('span', { text: String(session.movesLeft) })
     );
-    movesChip.classList.toggle('chip--warn', session.movesLeft <= 5);
+    movesChip.classList.toggle('chip--warn', session.movesLeft <= 10 && session.movesLeft > 5);
+    movesChip.classList.toggle('chip--danger', session.movesLeft <= 5);
     coinsChip.replaceChildren(
       el('span', { class: 'icon', html: icon('coin') }),
       el('span', { text: String(state.coins) })
     );
   }
 
-  function boosterButton({ kind, iconName, labelKey, onClick, count, reward }) {
+  function boosterButton({ kind, iconName, labelKey, onClick, count, reward, tone = 'green' }) {
     const btn = el('button', {
       type: 'button',
-      class: 'booster',
+      class: `booster booster--${tone}`,
       'aria-label': `${t(labelKey)}${count !== null ? `: ${count}` : ''}`
     }, [
-      el('span', { class: 'icon', html: icon(iconName) }),
-      el('span', { text: t(labelKey) })
+      el('span', { class: 'booster__icon', html: `<span class="icon">${icon(iconName)}</span>` }),
+      el('span', { class: 'booster__label', text: t(labelKey) })
     ]);
     if (count !== null && count > 0) btn.appendChild(el('span', { class: 'booster__count', text: String(count) }));
     else if (reward) btn.appendChild(el('span', { class: 'booster__reward', html: icon('reward') }));
@@ -161,23 +165,23 @@ export function LevelScreen() {
     const canReward = (src) => Ads.canUseReward(src);
     boosterBar.replaceChildren(
       boosterButton({
-        kind: 'hint', iconName: 'hint', labelKey: 'booster.hint', count: boosterCount('hint'),
+        kind: 'hint', iconName: 'hint', labelKey: 'booster.hint', tone: 'gold', count: boosterCount('hint'),
         reward: canReward('hint_pack'), onClick: useHint
       }),
       boosterButton({
-        kind: 'undo', iconName: 'undo', labelKey: 'booster.undo', count: boosterCount('undo'),
+        kind: 'undo', iconName: 'undo', labelKey: 'booster.undo', tone: 'blue', count: boosterCount('undo'),
         reward: canReward('undo_pack'), onClick: useUndo
       }),
       boosterButton({
-        kind: 'tube', iconName: 'plus', labelKey: 'booster.tube', count: boosterCount('tube'),
+        kind: 'tube', iconName: 'plus', labelKey: 'booster.tube', tone: 'green', count: boosterCount('tube'),
         reward: canReward('extra_tube'), onClick: useExtraTube
       }),
       boosterButton({
-        kind: 'leaf', iconName: 'leaf', labelKey: 'booster.leaf', count: boosterCount('leaf'),
+        kind: 'leaf', iconName: 'leaf', labelKey: 'booster.leaf', tone: 'warm', count: boosterCount('leaf'),
         reward: canReward('magic_leaf'), onClick: useMagicLeaf
       }),
       boosterButton({
-        kind: 'help', iconName: 'info', labelKey: 'button.help', count: null,
+        kind: 'help', iconName: 'info', labelKey: 'button.help', tone: 'pink', count: null,
         reward: true, onClick: openHelp
       })
     );
@@ -297,18 +301,93 @@ export function LevelScreen() {
     doMove(selected, index);
   }
 
+  function animateFlight(from, to, colorId, done) {
+    const srcTube = boardEl.children[from];
+    const dstTube = boardEl.children[to];
+    if (!srcTube || !dstTube) { done(); return; }
+    const srcItems = srcTube.querySelectorAll('.item');
+    const srcItem = srcItems[srcItems.length - 1];
+    if (!srcItem) { done(); return; }
+    const srcRect = srcItem.getBoundingClientRect();
+
+    const dstItems = dstTube.querySelectorAll('.item');
+    let dstRect;
+    if (!dstItems.length) {
+      const slots = dstTube.querySelectorAll('.tube__slot');
+      const slot = slots[slots.length - 1] || dstTube;
+      const r = slot.getBoundingClientRect();
+      dstRect = { left: r.left, top: r.top, width: r.width, height: r.height };
+    } else {
+      const last = dstItems[dstItems.length - 1];
+      const r = last.getBoundingClientRect();
+      dstRect = { left: r.left, top: r.top - r.height - 4, width: r.width, height: r.height };
+    }
+
+    const color = COLOR_BY_ID[colorId];
+    const clone = document.createElement('div');
+    clone.className = 'flying-item';
+    clone.style.left = `${srcRect.left}px`;
+    clone.style.top = `${srcRect.top}px`;
+    clone.style.width = `${srcRect.width}px`;
+    clone.style.height = `${srcRect.height}px`;
+    if (color) clone.style.background = color.hex;
+    clone.innerHTML = `<span class="icon">${icon(color ? color.sym : 'info')}</span>`;
+    document.body.appendChild(clone);
+    srcItem.classList.add('item--hidden');
+
+    const dx = dstRect.left - srcRect.left;
+    const dy = dstRect.top - srcRect.top;
+    const arc = Math.min(70, Math.abs(dx) * 0.28 + 32);
+    const finish = () => { clone.remove(); done(); };
+    if (typeof clone.animate === 'function') {
+      const anim = clone.animate([
+        { transform: 'translate(0, 0)' },
+        { transform: `translate(${dx / 2}px, ${dy - arc}px)`, offset: 0.5 },
+        { transform: `translate(${dx}px, ${dy}px)` }
+      ], { duration: 200, easing: 'cubic-bezier(0.2, 0.8, 0.3, 1)' });
+      anim.onfinish = finish;
+      anim.oncancel = finish;
+    } else {
+      clone.style.transition = 'transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1)';
+      requestAnimationFrame(() => { clone.style.transform = `translate(${dx}px, ${dy}px)`; });
+      setTimeout(finish, 220);
+    }
+  }
+
+  function markComplete(index) {
+    const node = boardEl.children[index];
+    if (!node) return;
+    node.classList.add('tube--complete');
+    const mark = el('span', { class: 'tube__mark', html: `<span class="icon">${icon('check')}</span>` });
+    node.appendChild(mark);
+    setTimeout(() => { node.classList.remove('tube--complete'); mark.remove(); }, 700);
+  }
+
+  function isTubeComplete(index) {
+    const tube = board.tubes[index];
+    if (tube.length !== board.capacity) return false;
+    const c = tube[0];
+    return tube.every((x) => x === c);
+  }
+
   function doMove(from, to) {
     busy = true;
-    makeMove(board, from, to);
-    history.push({ from, to });
-    session.movesLeft -= 1;
-    board.selectedTube = null;
-    hint = null;
-    lastDropTube = to;
-    Sound.play('move');
-    refresh();
-    lastDropTube = -1;
-    later(() => { busy = false; afterMove(); }, 170);
+    const colorId = board.tubes[from][board.tubes[from].length - 1];
+    animateFlight(from, to, colorId, () => {
+      makeMove(board, from, to);
+      history.push({ from, to });
+      session.movesLeft -= 1;
+      board.selectedTube = null;
+      hint = null;
+      lastDropTube = to;
+      Sound.play('move');
+      const completed = isTubeComplete(to);
+      refresh();
+      lastDropTube = -1;
+      if (completed) markComplete(to);
+      busy = false;
+      afterMove();
+    });
   }
 
   function afterMove() {
@@ -334,7 +413,11 @@ export function LevelScreen() {
     persist();
     Sound.play('win');
     track('level_complete', { level: session.levelNumber, stars, movesLeft: session.movesLeft });
-    later(() => go('result', { levelNumber: session.levelNumber, stars, coins, newCats }), 420);
+    [...boardEl.children].forEach((node, i) => {
+      if (!board.tubes[i].length) return;
+      setTimeout(() => node.classList.add('tube--bounce'), 60 * i);
+    });
+    later(() => go('result', { levelNumber: session.levelNumber, stars, coins, newCats }), 640);
   }
 
   function outOfMoves() {

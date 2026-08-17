@@ -1,4 +1,5 @@
 import { state, persist } from './state.js';
+import { mountScene } from '../ui/scene.js';
 
 let root = null;
 let screens = {};
@@ -27,6 +28,7 @@ export function go(name, params = {}) {
   currentParams = params;
   state.screen = name;
   persist();
+  mountScene(name);
   const shell = document.createElement('div');
   shell.className = 'shell';
   shell.appendChild(render(params));

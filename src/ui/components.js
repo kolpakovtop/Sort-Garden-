@@ -34,18 +34,26 @@ function withTap(node, onClick, sound = 'tap') {
   return node;
 }
 
-export function Button({ label, sub, iconName, variant = 'ghost', onClick, disabled, aria, wide = true, size, center = true, sound = 'tap', cls: extraCls }) {
+export function Button({ label, sub, iconName, chip, variant = 'ghost', onClick, disabled, aria, wide = true, size, center = true, sound = 'tap', cls: extraCls }) {
   const cls = ['btn', `btn--${variant}`];
   if (extraCls) cls.push(extraCls);
   if (wide) cls.push('btn--wide');
   if (size === 'sm') cls.push('btn--sm');
   if (center) cls.push('btn--center');
   const btn = el('button', { class: cls.join(' '), type: 'button', disabled: !!disabled, 'aria-label': aria || label });
-  if (iconName) btn.appendChild(el('span', { class: 'icon', html: icon(iconName) }));
+  if (chip) btn.appendChild(IconChip({ name: chip.name || iconName, tone: chip.tone, size: chip.size }));
+  else if (iconName) btn.appendChild(el('span', { class: 'icon', html: icon(iconName) }));
   const body = el('span', { class: 'btn__body' }, [el('span', { text: label })]);
   if (sub) body.appendChild(el('span', { class: 'btn__sub', text: sub }));
   btn.appendChild(body);
   return withTap(btn, onClick, sound);
+}
+
+export function IconChip({ name, tone = 'green', size = 'md' }) {
+  return el('span', {
+    class: `iconchip iconchip--${tone}${size !== 'md' ? ' iconchip--' + size : ''}`,
+    html: `<span class="icon">${icon(name)}</span>`
+  });
 }
 
 export function IconButton({ name, onClick, aria, variant = 'icon', disabled }) {

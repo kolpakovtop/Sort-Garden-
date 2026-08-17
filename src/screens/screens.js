@@ -4,8 +4,9 @@ import { track } from '../core/analytics.js';
 import * as Sound from '../core/audio.js';
 import * as Ads from '../core/ads.js';
 import { go, rerender, later } from '../core/router.js';
-import { el, Button, Chip, Card, Toggle, toast, TopBar, BackBar, confirmModal } from '../ui/components.js';
+import { el, Button, IconChip, Chip, Card, Toggle, toast, TopBar, BackBar, confirmModal } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
+import { catMascot } from '../ui/cat.js';
 import {
   DECOR, BOOSTER_SHOP, CATS, THEMES, DAILY_COINS, TASKS,
   hasCat, ownsDecor, addDecor, ensureTasks, taskReady, tasksReadyCount, claimTask,
@@ -18,14 +19,28 @@ import { pendingHelpers } from './level.js';
 
 export function BootScreen() {
   return el('div', { class: 'screen center', style: { justifyContent: 'center', alignItems: 'center', gap: '14px' } }, [
-    el('span', { class: 'icon icon--xl', style: { color: 'var(--accent)' }, html: icon('leaf') }),
+    el('div', { class: 'menu-hero__badge', html: `<span class="icon">${icon('leaf')}</span>` }),
     el('h1', { text: t('app.title') }),
     el('p', { text: t('app.loading') }),
-    el('div', { class: 'dots' , html: '<span></span><span></span><span></span>' })
+    el('div', { class: 'dots', html: '<span></span><span></span><span></span>' })
   ]);
 }
 
 /* ---------------- menu ---------------- */
+
+const TITLE_PARTS = { Sort: 'Sort', Garden: 'Garden' };
+
+function menuTile({ label, sub, iconName, tone, onClick }) {
+  return Button({
+    label,
+    sub,
+    chip: { name: iconName, tone },
+    variant: 'ghost',
+    cls: 'btn--tile',
+    center: false,
+    onClick
+  });
+}
 
 export function MenuScreen() {
   ensureTasks();
@@ -33,13 +48,16 @@ export function MenuScreen() {
   const tasksReady = tasksReadyCount();
 
   const helpers = Card([
-    el('h3', { text: t('prelevel.title') }),
+    el('div', { class: 'row row--between' }, [
+      el('h3', { text: t('prelevel.title') }),
+      el('span', { class: 'tag', text: t('reward.watch') })
+    ]),
     Button({
       label: t('prelevel.booster'),
       sub: pendingHelpers.booster ? t('prelevel.ready') : t('reward.watch'),
-      iconName: 'reward',
-      variant: 'reward',
-      size: 'sm',
+      chip: { name: 'reward', tone: 'green' },
+      variant: 'ghost',
+      cls: 'btn--tile',
       center: false,
       disabled: !Ads.canUseReward('prelevel_booster') || pendingHelpers.booster,
       onClick: async () => {
@@ -50,9 +68,9 @@ export function MenuScreen() {
     Button({
       label: t('prelevel.cat'),
       sub: pendingHelpers.cat ? t('prelevel.ready') : t('prelevel.catText'),
-      iconName: 'cat',
-      variant: 'reward',
-      size: 'sm',
+      chip: { name: 'cat', tone: 'warm' },
+      variant: 'ghost',
+      cls: 'btn--tile',
       center: false,
       disabled: !Ads.canUseReward('cat_helper') || pendingHelpers.cat,
       onClick: async () => {
@@ -60,18 +78,23 @@ export function MenuScreen() {
         if (ok) { pendingHelpers.cat = true; rerender(); }
       }
     })
-  ], 'card--quiet');
+  ]);
 
   return el('div', { class: 'screen scroll' }, [
     TopBar({
-      left: Chip({ iconName: 'coin', value: state.coins }),
+      left: Chip({ iconName: 'coin', value: state.coins, cls: 'chip--coin' }),
       title: '',
-      right: Chip({ iconName: 'star', value: state.starsTotal, cls: 'chip--plain' })
+      right: Chip({ iconName: 'star', value: state.starsTotal, cls: 'chip--star' })
     }),
     el('div', { class: 'menu-hero' }, [
-      el('span', { class: 'icon icon--xl', html: icon('leaf') }),
-      el('h1', { text: t('app.title') }),
-      el('p', { text: t('app.subtitle') })
+      el('div', { class: 'menu-hero__cat' }, [catMascot({ size: 'md' })]),
+      el('div', { class: 'menu-hero__logo' }, [
+        el('div', { class: 'menu-hero__badge', html: `<span class="icon">${icon('leaf')}</span>` }),
+        el('div', {}, [
+          el('div', { class: 'menu-hero__title', html: `${TITLE_PARTS.Sort} <span>${TITLE_PARTS.Garden}</span>` }),
+          el('div', { class: 'menu-hero__sub', text: t('app.subtitle') })
+        ])
+      ])
     ]),
     el('div', { class: 'menu-grid' }, [
       Button({
@@ -82,38 +105,65 @@ export function MenuScreen() {
         cls: 'btn--full',
         onClick: () => go('level')
       }),
-      Button({ label: t('button.garden'), iconName: 'garden', onClick: () => go('garden') }),
-      Button({ label: t('button.shop'), iconName: 'shop', onClick: () => go('shop') }),
-      Button({
+      menuTile({ label: t('button.garden'), iconName: 'garden', tone: 'green', onClick: () => go('garden') }),
+      menuTile({ label: t('button.shop'), iconName: 'shop', tone: 'gold', onClick: () => go('shop') }),
+      menuTile({
         label: t('button.daily'),
         sub: info.claimedToday ? undefined : t('daily.take', { n: info.amount }),
         iconName: 'gift',
+        tone: 'pink',
         onClick: () => go('daily')
       }),
-      Button({ label: t('button.settingsShort'), iconName: 'settings', onClick: () => go('settings') })
+      menuTile({ label: t('button.settings'), iconName: 'settings', tone: 'blue', onClick: () => go('settings') })
     ]),
     helpers,
-    el('div', { class: 'row row--split' }, [
+    el('div', { class: 'row' }, [
       Button({
         label: t('button.tasks'),
         sub: tasksReady ? t('button.collect') : undefined,
-        iconName: 'task',
+        chip: { name: 'task', tone: 'blue', size: 'sm' },
+        variant: 'ghost',
+        cls: 'btn--tile',
         size: 'sm',
+        center: false,
         onClick: () => go('tasks')
       }),
-      Button({ label: t('button.rewards'), iconName: 'chest', size: 'sm', onClick: () => go('rewards') })
+      Button({
+        label: t('button.rewards'),
+        chip: { name: 'chest', tone: 'gold', size: 'sm' },
+        variant: 'ghost',
+        cls: 'btn--tile',
+        size: 'sm',
+        center: false,
+        onClick: () => go('rewards')
+      })
     ])
   ]);
 }
 
 /* ---------------- result ---------------- */
 
+function petalRain(host) {
+  const colors = ['#D98BB6', '#EFC65B', '#7BAE7F', '#6C9BD1', '#E89A5D'];
+  const petals = el('div', { class: 'petals' });
+  for (let i = 0; i < 10; i++) {
+    const petal = el('span', { class: 'petal' });
+    petal.style.left = `${5 + Math.random() * 90}%`;
+    petal.style.background = colors[i % colors.length];
+    petal.style.animationDelay = `${Math.random() * 1.6}s`;
+    petal.style.setProperty('--dx', `${(Math.random() - 0.5) * 80}px`);
+    petal.style.setProperty('--dr', `${(Math.random() - 0.5) * 480}deg`);
+    petals.appendChild(petal);
+  }
+  host.appendChild(petals);
+}
+
 export function ResultScreen({ levelNumber = 1, stars = 1, coins = 0, newCats = [] }) {
   let earned = coins;
   addCoins(coins, 'level');
   Sound.play('coin');
 
-  const coinsRow = Chip({ iconName: 'coin', value: `+${earned}` });
+  const coinsRow = el('span', { class: 'result__coins', html: `<span class="icon">${icon('coin')}</span><span>+${earned}</span>` });
   const actions = el('div', { class: 'col' });
 
   const refreshCoins = () => {
@@ -126,7 +176,7 @@ export function ResultScreen({ levelNumber = 1, stars = 1, coins = 0, newCats = 
   const doubleBtn = Button({
     label: t('button.double'),
     sub: t('reward.watch'),
-    iconName: 'reward',
+    chip: { name: 'reward', tone: 'green' },
     variant: 'reward',
     center: false,
     disabled: !Ads.canUseReward('win_double'),
@@ -144,7 +194,7 @@ export function ResultScreen({ levelNumber = 1, stars = 1, coins = 0, newCats = 
   const chestBtn = Button({
     label: t('button.watchBonus'),
     sub: '+25',
-    iconName: 'chest',
+    chip: { name: 'chest', tone: 'gold' },
     variant: 'reward',
     center: false,
     disabled: !Ads.canUseReward('bonus_chest'),
@@ -166,7 +216,7 @@ export function ResultScreen({ levelNumber = 1, stars = 1, coins = 0, newCats = 
     'aria-hidden': 'true'
   })));
 
-  const totalChip = Chip({ iconName: 'coin', value: state.coins, cls: 'chip--plain' });
+  const totalChip = Chip({ iconName: 'coin', value: state.coins, cls: 'chip--coin' });
   function rerenderTop() {
     totalChip.replaceChildren(
       el('span', { class: 'icon', html: icon('coin') }),
@@ -178,14 +228,19 @@ export function ResultScreen({ levelNumber = 1, stars = 1, coins = 0, newCats = 
     later(() => toast(t('cats.new', { name: catName(newCats[0].id) })), 700);
   }
 
+  const resultCard = el('div', { class: 'result' }, [
+    el('div', { class: 'result__cat' }, [catMascot({ size: 'md', mood: 'happy' })]),
+    el('h1', { text: t('level.completed') }),
+    el('p', { text: `${t('level.title')} ${levelNumber}` }),
+    starsRow,
+    coinsRow
+  ]);
+
+  later(() => petalRain(resultCard), 120);
+
   return el('div', { class: 'screen' }, [
     TopBar({ left: el('span', { style: { width: '56px' } }), title: '', right: totalChip }),
-    el('div', { class: 'col center', style: { gap: '16px', marginTop: '10px' } }, [
-      el('h1', { text: t('level.completed') }),
-      el('p', { text: `${t('level.title')} ${levelNumber}` }),
-      starsRow,
-      el('div', { class: 'row', style: { justifyContent: 'center' } }, [coinsRow])
-    ]),
+    resultCard,
     el('div', { class: 'spacer' }),
     actions,
     Button({
@@ -197,9 +252,9 @@ export function ResultScreen({ levelNumber = 1, stars = 1, coins = 0, newCats = 
         go('level');
       }
     }),
-    el('div', { class: 'row row--split' }, [
-      Button({ label: t('button.garden'), iconName: 'garden', size: 'sm', onClick: () => go('garden') }),
-      Button({ label: t('button.menu'), iconName: 'home', size: 'sm', onClick: () => go('menu') })
+    el('div', { class: 'row' }, [
+      Button({ label: t('button.garden'), chip: { name: 'garden', tone: 'green', size: 'sm' }, variant: 'ghost', cls: 'btn--tile', size: 'sm', center: false, onClick: () => go('garden') }),
+      Button({ label: t('button.menu'), chip: { name: 'home', tone: 'blue', size: 'sm' }, variant: 'ghost', cls: 'btn--tile', size: 'sm', center: false, onClick: () => go('menu') })
     ])
   ]);
 }
@@ -222,8 +277,13 @@ export function GardenScreen() {
   }));
 
   const offlineCard = pending > 0 ? Card([
-    el('h3', { text: t('garden.offline') }),
-    el('p', { text: t('garden.offlineText', { n: pending }) }),
+    el('div', { class: 'row' }, [
+      IconChip({ name: 'coin', tone: 'gold' }),
+      el('div', { class: 'grow' }, [
+        el('h3', { text: t('garden.offline') }),
+        el('p', { class: 'small', text: t('garden.offlineText', { n: pending }) })
+      ])
+    ]),
     Button({
       label: `${t('button.collect')} ${pending}`,
       iconName: 'coin',
@@ -233,7 +293,7 @@ export function GardenScreen() {
     Button({
       label: t('button.double'),
       sub: t('reward.watch'),
-      iconName: 'reward',
+      chip: { name: 'reward', tone: 'green' },
       variant: 'reward',
       center: false,
       disabled: !Ads.canUseReward('offline_double'),
@@ -245,24 +305,35 @@ export function GardenScreen() {
     })
   ]) : null;
 
-  return el('div', { class: 'screen scroll' }, [
-    BackBar(t('garden.title'), () => go('menu'), Chip({ iconName: 'coin', value: state.coins })),
-    offlineCard,
-    Card([
-      el('div', { class: 'row row--between' }, [
+  const decorCard = Card([
+    el('div', { class: 'row' }, [
+      IconChip({ name: 'garden', tone: 'green' }),
+      el('div', { class: 'grow' }, [
         el('h3', { text: t('garden.decor', { n: state.meta.ownedDecor.length }) }),
         el('span', { class: 'small muted', text: `${state.meta.ownedDecor.length}/${DECOR.length}` })
       ]),
-      cells,
-      state.meta.ownedDecor.length ? null : el('p', { class: 'small', text: t('garden.empty') })
+      hasCat('ryzhik') ? catMascot({ size: 'sm', variant: 'ginger' }) : null
     ]),
+    cells,
+    state.meta.ownedDecor.length ? null : el('p', { class: 'small', text: t('garden.empty') })
+  ]);
+
+  return el('div', { class: 'screen scroll' }, [
+    BackBar(t('garden.title'), () => go('menu'), Chip({ iconName: 'coin', value: state.coins, cls: 'chip--coin' })),
+    offlineCard,
+    decorCard,
     Card([
-      el('h3', { text: t('garden.gift') }),
-      el('p', { class: 'small', text: t('garden.giftText') }),
+      el('div', { class: 'row' }, [
+        IconChip({ name: 'gift', tone: 'pink' }),
+        el('div', { class: 'grow' }, [
+          el('h3', { text: t('garden.gift') }),
+          el('p', { class: 'small', text: t('garden.giftText') })
+        ])
+      ]),
       Button({
         label: `${t('button.collect')} 40`,
         sub: t('reward.watch'),
-        iconName: 'reward',
+        chip: { name: 'reward', tone: 'green' },
         variant: 'reward',
         center: false,
         disabled: !Ads.canUseReward('garden_gift'),
@@ -272,18 +343,18 @@ export function GardenScreen() {
         }
       })
     ], 'card--quiet'),
-    Button({ label: t('button.shop'), iconName: 'shop', onClick: () => go('shop') })
+    Button({ label: t('button.shop'), chip: { name: 'shop', tone: 'gold' }, variant: 'ghost', cls: 'btn--tile', center: false, onClick: () => go('shop') })
   ]);
 }
 
 /* ---------------- shop ---------------- */
 
-function buyRow({ iconName, title, sub, price, owned, onBuy }) {
+function shopRow({ iconName, tone, title, sub, price, owned, onBuy }) {
   return el('div', { class: 'shop-item' }, [
-    el('span', { class: 'icon icon--lg', html: icon(iconName) }),
+    IconChip({ name: iconName, tone }),
     el('div', { class: 'grow' }, [
-      el('div', { text: title, style: { fontWeight: '600' } }),
-      sub ? el('div', { class: 'small muted', text: sub }) : null
+      el('div', { class: 'shop-item__title', text: title }),
+      sub ? el('div', { class: 'shop-item__sub', text: sub }) : null
     ]),
     owned
       ? el('span', { class: 'tag', text: t('button.owned') })
@@ -299,19 +370,27 @@ function buyRow({ iconName, title, sub, price, owned, onBuy }) {
   ]);
 }
 
+const BOOSTER_TONES = { hint: 'gold', undo: 'blue', shuffle: 'pink', tube: 'green', leaf: 'warm' };
+const DECOR_TONES = { flower: 'pink', bush: 'green', bench: 'warm', lantern: 'gold', path: 'warm', fountain: 'blue', catHouse: 'warm', tree: 'green' };
+
 export function ShopScreen() {
   const trialTheme = THEMES.find((id) => id !== activeThemeId()) || 'dusk';
 
   return el('div', { class: 'screen scroll' }, [
-    BackBar(t('shop.title'), () => go('menu'), Chip({ iconName: 'coin', value: state.coins })),
+    BackBar(t('shop.title'), () => go('menu'), Chip({ iconName: 'coin', value: state.coins, cls: 'chip--coin' })),
 
     Card([
-      el('h3', { text: t('shop.free') }),
-      el('p', { class: 'small', text: t('shop.freeText') }),
+      el('div', { class: 'row' }, [
+        IconChip({ name: 'coin', tone: 'gold' }),
+        el('div', { class: 'grow' }, [
+          el('h3', { text: t('shop.free') }),
+          el('p', { class: 'small', text: t('shop.freeText') })
+        ])
+      ]),
       Button({
         label: `${t('button.collect')} 60`,
         sub: t('reward.watch'),
-        iconName: 'reward',
+        chip: { name: 'reward', tone: 'green' },
         variant: 'reward',
         center: false,
         disabled: !Ads.canUseReward('event_boost'),
@@ -323,7 +402,7 @@ export function ShopScreen() {
       Button({
         label: t('shop.trial'),
         sub: t('shop.trialText'),
-        iconName: 'reward',
+        chip: { name: 'settings', tone: 'blue' },
         variant: 'reward',
         center: false,
         disabled: !Ads.canUseReward('cosmetic_trial'),
@@ -335,9 +414,13 @@ export function ShopScreen() {
     ]),
 
     Card([
-      el('h3', { text: t('shop.boosters') }),
-      ...BOOSTER_SHOP.map((b) => buyRow({
+      el('div', { class: 'row' }, [
+        IconChip({ name: 'hint', tone: 'gold' }),
+        el('h3', { class: 'grow', text: t('shop.boosters') })
+      ]),
+      ...BOOSTER_SHOP.map((b) => shopRow({
         iconName: b.icon,
+        tone: BOOSTER_TONES[b.id] || 'green',
         title: t(`booster.${b.id}`),
         sub: `${t('button.owned')}: ${state.meta.boosters[b.id] || 0}`,
         price: b.price,
@@ -352,9 +435,13 @@ export function ShopScreen() {
     ]),
 
     Card([
-      el('h3', { text: t('shop.decor') }),
-      ...DECOR.map((d) => buyRow({
+      el('div', { class: 'row' }, [
+        IconChip({ name: 'garden', tone: 'green' }),
+        el('h3', { class: 'grow', text: t('shop.decor') })
+      ]),
+      ...DECOR.map((d) => shopRow({
         iconName: d.id,
+        tone: DECOR_TONES[d.id] || 'green',
         title: t(`decor.${d.id}`),
         price: d.price,
         owned: ownsDecor(d.id),
@@ -382,7 +469,7 @@ export function DailyScreen() {
     return el('div', { class: `day${done ? ' day--done' : ''}${current ? ' day--current' : ''}` }, [
       el('div', { text: t('daily.day', { n: i + 1 }) }),
       el('div', { class: 'day__coins' }, [
-        el('span', { class: 'icon', style: { width: '16px', height: '16px' }, html: icon('coin') }),
+        el('span', { class: 'icon', html: icon('coin') }),
         el('span', { text: String(amount) })
       ])
     ]);
@@ -395,7 +482,7 @@ export function DailyScreen() {
     body.appendChild(Button({
       label: t('daily.extra'),
       sub: t('reward.watch'),
-      iconName: 'reward',
+      chip: { name: 'reward', tone: 'green' },
       variant: 'reward',
       center: false,
       disabled: !Ads.canUseReward('daily_extra'),
@@ -414,7 +501,7 @@ export function DailyScreen() {
     body.appendChild(Button({
       label: t('button.double'),
       sub: t('reward.watch'),
-      iconName: 'reward',
+      chip: { name: 'reward', tone: 'green' },
       variant: 'reward',
       center: false,
       disabled: !Ads.canUseReward('daily_double'),
@@ -428,31 +515,38 @@ export function DailyScreen() {
   }
 
   return el('div', { class: 'screen scroll' }, [
-    BackBar(t('daily.short'), () => go('menu'), Chip({ iconName: 'coin', value: state.coins })),
+    BackBar(t('daily.title'), () => go('menu'), Chip({ iconName: 'coin', value: state.coins, cls: 'chip--coin' })),
     Card([
-      el('p', { text: t('daily.streak', { n: info.streak }) }),
+      el('div', { class: 'row' }, [
+        IconChip({ name: 'gift', tone: 'pink' }),
+        el('p', { class: 'grow', text: t('daily.streak', { n: info.streak }) }),
+        hasCat('moma') ? catMascot({ size: 'sm', variant: 'moma' }) : null
+      ]),
       days,
       body
     ]),
-    Button({ label: t('button.tasks'), iconName: 'task', onClick: () => go('tasks') })
+    Button({ label: t('button.tasks'), chip: { name: 'task', tone: 'blue' }, variant: 'ghost', cls: 'btn--tile', center: false, onClick: () => go('tasks') })
   ]);
 }
 
 /* ---------------- tasks ---------------- */
 
+const TASK_TONES = { levels: 'green', booster: 'gold', decor: 'pink' };
+
 export function TasksScreen() {
   const tasks = ensureTasks();
 
   return el('div', { class: 'screen scroll' }, [
-    BackBar(t('tasks.title'), () => go('menu'), Chip({ iconName: 'coin', value: state.coins })),
+    BackBar(t('tasks.title'), () => go('menu'), Chip({ iconName: 'coin', value: state.coins, cls: 'chip--coin' })),
     ...tasks.map((task) => {
       const def = TASKS.find((x) => x.id === task.id);
       const claimed = state.daily.claimedTaskIds.includes(task.id);
       const ready = taskReady(task.id);
       return Card([
-        el('div', { class: 'row row--between', style: { gap: '10px' } }, [
-          el('div', { class: 'grow', style: { minWidth: '0' } }, [
-            el('div', { text: t(def.labelKey), style: { fontWeight: '600' } }),
+        el('div', { class: 'row' }, [
+          IconChip({ name: task.id === 'decor' ? 'garden' : task.id === 'booster' ? 'hint' : 'check', tone: TASK_TONES[task.id] || 'green' }),
+          el('div', { class: 'grow' }, [
+            el('div', { text: t(def.labelKey), style: { fontWeight: '700' } }),
             el('div', { class: 'small muted', text: `${task.progress}/${task.goal}` })
           ]),
           claimed
@@ -477,28 +571,37 @@ export function TasksScreen() {
 
 /* ---------------- rewards ---------------- */
 
+const CAT_VARIANTS = { ryzhik: 'ginger', luna: 'luna', moma: 'moma' };
+
 export function RewardsScreen() {
   const cats = CATS.map((cat) => {
     const owned = hasCat(cat.id);
     return el('div', { class: 'shop-item' }, [
-      el('span', { class: 'icon icon--lg', style: { color: owned ? 'var(--accent)' : 'var(--muted)' }, html: icon(owned ? 'cat' : 'lock') }),
+      owned
+        ? el('span', { style: { width: '52px', height: '52px', display: 'inline-flex' } }, [catMascot({ size: 'sm', variant: CAT_VARIANTS[cat.id] })])
+        : IconChip({ name: 'lock', tone: 'blue' }),
       el('div', { class: 'grow' }, [
-        el('div', { text: t(cat.nameKey), style: { fontWeight: '600' } }),
-        el('div', { class: 'small muted', text: owned ? t(cat.bonusKey) : t('rewards.locked', { n: cat.level }) })
+        el('div', { class: 'shop-item__title', text: t(cat.nameKey) }),
+        el('div', { class: 'shop-item__sub', text: owned ? t(cat.bonusKey) : t('rewards.locked', { n: cat.level }) })
       ]),
       owned ? el('span', { class: 'tag', text: t('tasks.done') }) : null
     ]);
   });
 
   return el('div', { class: 'screen scroll' }, [
-    BackBar(t('rewards.title'), () => go('menu'), Chip({ iconName: 'coin', value: state.coins })),
+    BackBar(t('rewards.title'), () => go('menu'), Chip({ iconName: 'coin', value: state.coins, cls: 'chip--coin' })),
     Card([
-      el('h3', { text: t('rewards.event') }),
-      el('p', { class: 'small', text: t('rewards.eventText') }),
+      el('div', { class: 'row' }, [
+        IconChip({ name: 'chest', tone: 'gold' }),
+        el('div', { class: 'grow' }, [
+          el('h3', { text: t('rewards.event') }),
+          el('p', { class: 'small', text: t('rewards.eventText') })
+        ])
+      ]),
       Button({
         label: `${t('button.collect')} 60`,
         sub: t('reward.watch'),
-        iconName: 'reward',
+        chip: { name: 'reward', tone: 'green' },
         variant: 'reward',
         center: false,
         disabled: !Ads.canUseReward('event_boost'),
@@ -510,15 +613,20 @@ export function RewardsScreen() {
     ]),
     Card([
       el('div', { class: 'row row--between' }, [
-        el('h3', { text: t('rewards.sticker') }),
+        el('div', { class: 'row' }, [
+          IconChip({ name: 'sticker', tone: 'pink' }),
+          el('h3', { text: t('rewards.sticker') })
+        ]),
         el('span', { class: 'small muted', text: t('rewards.stickers', { n: state.meta.stickers.length }) })
       ]),
       el('p', { class: 'small', text: t('rewards.stickerText') }),
-      el('div', { class: 'row', style: { flexWrap: 'wrap' } }, state.meta.stickers.map((s) => Chip({ iconName: 'sticker', value: s, cls: 'chip--plain' }))),
+      state.meta.stickers.length
+        ? el('div', { class: 'row row--wrap' }, state.meta.stickers.map((s) => Chip({ iconName: 'sticker', value: s, cls: 'chip--plain' })))
+        : null,
       Button({
         label: t('rewards.sticker'),
         sub: t('reward.watch'),
-        iconName: 'reward',
+        chip: { name: 'reward', tone: 'green' },
         variant: 'reward',
         center: false,
         disabled: !Ads.canUseReward('sticker_pack'),
@@ -528,7 +636,13 @@ export function RewardsScreen() {
         }
       })
     ]),
-    Card([el('h3', { text: t('rewards.cats') }), ...cats])
+    Card([
+      el('div', { class: 'row' }, [
+        IconChip({ name: 'cat', tone: 'warm' }),
+        el('h3', { class: 'grow', text: t('rewards.cats') })
+      ]),
+      ...cats
+    ])
   ]);
 }
 
@@ -542,7 +656,7 @@ export function SettingsScreen() {
     onClick: () => { setLang(lang); track('settings_change', { lang }); rerender(); }
   })));
 
-  const themeRow = el('div', { class: 'row' }, THEMES.map((id) => Button({
+  const themeRow = el('div', { class: 'row row--wrap' }, THEMES.map((id) => Button({
     label: t(`theme.${id}`),
     size: 'sm',
     variant: state.meta.activeTheme === id ? 'primary' : 'ghost',
@@ -572,8 +686,14 @@ export function SettingsScreen() {
         onChange: (v) => { state.settings.music = v; persist(); Sound.syncMusic(); track('settings_change', { music: v }); rerender(); }
       })
     ]),
-    Card([el('h3', { text: t('settings.language') }), langRow]),
-    Card([el('h3', { text: t('settings.theme') }), themeRow]),
+    Card([
+      el('div', { class: 'row' }, [IconChip({ name: 'info', tone: 'blue' }), el('h3', { text: t('settings.language') })]),
+      langRow
+    ]),
+    Card([
+      el('div', { class: 'row' }, [IconChip({ name: 'settings', tone: 'warm' }), el('h3', { text: t('settings.theme') })]),
+      themeRow
+    ]),
     Card([
       Button({
         label: t('settings.reset'),

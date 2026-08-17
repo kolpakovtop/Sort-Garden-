@@ -4,6 +4,7 @@ import { track } from './core/analytics.js';
 import * as Sound from './core/audio.js';
 import * as Ads from './core/ads.js';
 import { initRouter, go, current } from './core/router.js';
+import { mountScene } from './ui/scene.js';
 import { applyTheme, ensureTasks, markSeen } from './game/meta.js';
 import { LevelScreen } from './screens/level.js';
 import {
