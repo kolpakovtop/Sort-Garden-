@@ -96,11 +96,15 @@ export function Toggle({ label, iconName, checked, onChange }) {
   return withTap(btn, () => onChange(!checked));
 }
 
-export function TopBar({ left, title, right }) {
-  return el('div', { class: 'topbar' }, [
-    left || el('span', { style: { width: '56px' } }),
-    el('div', { class: 'grow topbar__title truncate', text: title || '' }),
-    right || el('span', { style: { width: '56px' } })
+export function TopBar({ left, title, right, center }) {
+  // one HUD used by every screen, so the bar height never jumps on navigation
+  if (center) {
+    return el('div', { class: 'hud hud--center' }, Array.isArray(center) ? center : [center]);
+  }
+  return el('div', { class: 'hud' }, [
+    left || el('span', { style: { width: 'var(--btn-h)' } }),
+    el('div', { class: 'grow hud__title truncate', text: title || '' }),
+    right ? el('div', { class: 'hud__side' }, Array.isArray(right) ? right : [right]) : el('span', { style: { width: 'var(--btn-h)' } })
   ]);
 }
 
@@ -125,11 +129,14 @@ export function Modal({ title, text, content, actions = [], onClose, dismissable
   const box = el('div', { class: 'modal__box' });
   modalCount += 1;
 
+  let closing = false;
   const close = () => {
-    if (!host.isConnected) return;
-    host.remove();
+    if (!host.isConnected || closing) return;
+    closing = true;
     modalCount = Math.max(0, modalCount - 1);
     document.removeEventListener('keydown', onKey);
+    host.classList.add('modal--out');
+    setTimeout(() => host.remove(), 140);
     if (onClose) onClose();
   };
 

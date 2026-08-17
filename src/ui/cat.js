@@ -1,10 +1,10 @@
-// Cat mascot. Sizing is controlled by CSS. `size` maps to a preset class.
+// Cat mascot: a single SVG, tail attached to the body and fully inside the viewBox.
 
 const VARIANTS = {
-  default: { body: '#E8A96B', belly: '#F4CBA1', ears: '#C88854' },
-  ginger:  { body: '#E89A5D', belly: '#F4CBA1', ears: '#C97A3E' },
-  luna:    { body: '#8A88B1', belly: '#D6D5E7', ears: '#6B6996' },
-  moma:    { body: '#33302B', belly: '#7A7367', ears: '#33302B' }
+  default: { body: '#E8A96B', belly: '#F6D4AE', ear: '#C8834C', line: '#33302B' },
+  ginger:  { body: '#E89A5D', belly: '#F6D4AE', ear: '#C2743A', line: '#33302B' },
+  luna:    { body: '#8F8DB6', belly: '#DAD9EC', ear: '#6D6B99', line: '#2E2C3A' },
+  moma:    { body: '#5C574F', belly: '#A79E90', ear: '#413D37', line: '#2A2823' }
 };
 
 export function catMascot({ variant = 'default', size = 'md', mood = 'idle' } = {}) {
@@ -13,29 +13,35 @@ export function catMascot({ variant = 'default', size = 'md', mood = 'idle' } = 
   wrap.className = `cat cat--${size} cat--${mood}`;
   wrap.setAttribute('aria-hidden', 'true');
   wrap.innerHTML = `
-<svg viewBox="0 0 120 100" preserveAspectRatio="xMidYMax meet" focusable="false">
-  <g class="cat__tail" fill="none" stroke="${c.body}" stroke-width="8" stroke-linecap="round">
-    <path d="M92 66 C 108 56 106 40 100 32"/>
-  </g>
-  <ellipse class="cat__shadow" cx="60" cy="94" rx="34" ry="4" fill="rgba(51,48,43,0.14)"/>
-  <path class="cat__body" fill="${c.body}" d="M28 70 Q 28 46 60 46 Q 92 46 92 70 Q 92 92 60 92 Q 28 92 28 70 Z"/>
-  <path class="cat__belly" fill="${c.belly}" d="M40 74 Q 40 62 60 62 Q 80 62 80 74 Q 80 88 60 88 Q 40 88 40 74 Z"/>
-  <circle class="cat__head" cx="60" cy="40" r="24" fill="${c.body}"/>
-  <path class="cat__ear cat__ear--l" fill="${c.body}" d="M40 22 L 34 6 L 52 18 Z"/>
-  <path class="cat__ear cat__ear--r" fill="${c.body}" d="M80 22 L 86 6 L 68 18 Z"/>
-  <path fill="${c.ears}" d="M42 18 L 40 10 L 48 18 Z"/>
-  <path fill="${c.ears}" d="M78 18 L 80 10 L 72 18 Z"/>
-  <g class="cat__face" fill="var(--text)">
-    <ellipse class="cat__eye cat__eye--l" cx="51" cy="42" rx="2" ry="2.6"/>
-    <ellipse class="cat__eye cat__eye--r" cx="69" cy="42" rx="2" ry="2.6"/>
-    <circle cx="51" cy="41.2" r="0.7" fill="#FFFDF8"/>
-    <circle cx="69" cy="41.2" r="0.7" fill="#FFFDF8"/>
-    <path d="M57 49 Q 60 51 63 49" stroke="var(--text)" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-    <path d="M60 47 L 60 49" stroke="var(--text)" stroke-width="1.2" stroke-linecap="round"/>
-  </g>
-  <g class="cat__cheeks" opacity="0.4">
-    <circle cx="46" cy="47" r="2.6" fill="#D98BB6"/>
-    <circle cx="74" cy="47" r="2.6" fill="#D98BB6"/>
+<svg viewBox="0 0 96 96" focusable="false">
+  <ellipse class="cat__shadow" cx="48" cy="88" rx="27" ry="4" fill="rgba(51,48,43,.13)"/>
+
+  <!-- tail grows out of the body's right hip and curls back inside the frame -->
+  <path class="cat__tail" fill="none" stroke="${c.body}" stroke-width="7" stroke-linecap="round"
+        d="M69 78 C 82 76 87 64 82 55 C 79 49 73 48 71 52"/>
+
+  <g class="cat__breath">
+    <path class="cat__body" fill="${c.body}"
+          d="M24 66 C 24 47 34 39 48 39 C 62 39 72 47 72 66 C 72 80 62 86 48 86 C 34 86 24 80 24 66 Z"/>
+    <path class="cat__belly" fill="${c.belly}"
+          d="M36 70 C 36 60 41 56 48 56 C 55 56 60 60 60 70 C 60 78 55 82 48 82 C 41 82 36 78 36 70 Z"/>
+    <path class="cat__paw" fill="${c.belly}" d="M34 82 h9 a4.5 4.5 0 0 1 0 5 h-9 a2.5 2.5 0 0 1 0-5 Z"/>
+    <path class="cat__paw" fill="${c.belly}" d="M53 82 h9 a2.5 2.5 0 0 1 0 5 h-9 a4.5 4.5 0 0 1 0-5 Z"/>
+
+    <path class="cat__ear" fill="${c.ear}" d="M30 26 L27 11 L42 20 Z"/>
+    <path class="cat__ear" fill="${c.ear}" d="M66 26 L69 11 L54 20 Z"/>
+    <circle class="cat__head" cx="48" cy="32" r="20" fill="${c.body}"/>
+
+    <g class="cat__face">
+      <ellipse class="cat__eye" cx="41" cy="32" rx="2.3" ry="3" fill="${c.line}"/>
+      <ellipse class="cat__eye" cx="55" cy="32" rx="2.3" ry="3" fill="${c.line}"/>
+      <circle cx="41.7" cy="30.8" r="0.8" fill="#FFFDF8"/>
+      <circle cx="55.7" cy="30.8" r="0.8" fill="#FFFDF8"/>
+      <path d="M48 37 v2" stroke="${c.line}" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+      <path d="M44.5 40 Q 48 42.5 51.5 40" stroke="${c.line}" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+      <circle cx="35" cy="37" r="2.6" fill="#D98BB6" opacity=".38"/>
+      <circle cx="61" cy="37" r="2.6" fill="#D98BB6" opacity=".38"/>
+    </g>
   </g>
 </svg>`;
   return wrap;

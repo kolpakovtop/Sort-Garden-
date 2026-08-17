@@ -91,8 +91,17 @@ export function LevelScreen() {
   root.appendChild(boardWrap);
   root.appendChild(boosterBar);
 
+  function onKey(e) {
+    if (e.key === 'Escape' && !finished && !document.querySelector('.modal')) {
+      e.preventDefault();
+      openPause();
+    }
+  }
+  document.addEventListener('keydown', onKey);
+
   onLeave(() => {
     if (hintTimer) clearTimeout(hintTimer);
+    document.removeEventListener('keydown', onKey);
     state.board = null;
   });
 
@@ -116,6 +125,7 @@ export function LevelScreen() {
     for (let i = items.length; i < board.capacity; i++) {
       node.appendChild(el('div', { class: 'tube__slot' }));
     }
+    if (items.length === board.capacity && items.every((c) => c === items[0])) node.classList.add('tube--done');
     if (board.selectedTube === index) node.classList.add('tube--selected');
     if (hint && hint.from === index) node.classList.add('tube--hint');
     if (hint && hint.to === index) node.classList.add('tube--target');
@@ -131,6 +141,31 @@ export function LevelScreen() {
     boardEl.classList.toggle('board--tight', board.tubes.length > 7);
     boardEl.classList.toggle('board--dense', board.tubes.length > 9);
     boardEl.replaceChildren(...board.tubes.map((tube, i) => tubeNode(tube, i)));
+    sizeShelf();
+  }
+
+  // swap a single jar in place instead of rebuilding the whole board
+  function patchTube(index) {
+    const old = boardEl.children[index];
+    if (!old) { renderBoard(); return; }
+    boardEl.replaceChild(tubeNode(board.tubes[index], index), old);
+  }
+
+  function sizeShelf() {
+    requestAnimationFrame(() => {
+      const first = boardEl.children[0];
+      if (!first) return;
+      const rows = new Map();
+      [...boardEl.children].forEach((node) => {
+        const top = Math.round(node.getBoundingClientRect().top);
+        rows.set(top, (rows.get(top) || 0) + 1);
+      });
+      const widest = Math.max(...rows.values());
+      const style = getComputedStyle(boardEl);
+      const gap = parseFloat(style.columnGap) || 10;
+      const tubeW = first.getBoundingClientRect().width;
+      shelfEl.style.width = `${Math.round(widest * tubeW + (widest - 1) * gap + 20)}px`;
+    });
   }
 
   function renderTop() {
@@ -301,7 +336,11 @@ export function LevelScreen() {
     doMove(selected, index);
   }
 
+  const reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Three phases (lift → arc → land), transform/opacity only, ≤300ms total.
   function animateFlight(from, to, colorId, done) {
+    if (reducedMotion()) { done(); return; }
     const srcTube = boardEl.children[from];
     const dstTube = boardEl.children[to];
     if (!srcTube || !dstTube) { done(); return; }
@@ -310,18 +349,11 @@ export function LevelScreen() {
     if (!srcItem) { done(); return; }
     const srcRect = srcItem.getBoundingClientRect();
 
-    const dstItems = dstTube.querySelectorAll('.item');
-    let dstRect;
-    if (!dstItems.length) {
-      const slots = dstTube.querySelectorAll('.tube__slot');
-      const slot = slots[slots.length - 1] || dstTube;
-      const r = slot.getBoundingClientRect();
-      dstRect = { left: r.left, top: r.top, width: r.width, height: r.height };
-    } else {
-      const last = dstItems[dstItems.length - 1];
-      const r = last.getBoundingClientRect();
-      dstRect = { left: r.left, top: r.top - r.height - 4, width: r.width, height: r.height };
-    }
+    // the slot the piece will occupy: last empty slot of the destination jar
+    const slots = dstTube.querySelectorAll('.tube__slot');
+    const targetSlot = slots[slots.length - 1];
+    const dstRect = (targetSlot || dstTube).getBoundingClientRect();
+    if (targetSlot) targetSlot.classList.add('tube__slot--target');
 
     const color = COLOR_BY_ID[colorId];
     const clone = document.createElement('div');
@@ -337,30 +369,41 @@ export function LevelScreen() {
 
     const dx = dstRect.left - srcRect.left;
     const dy = dstRect.top - srcRect.top;
-    const arc = Math.min(70, Math.abs(dx) * 0.28 + 32);
-    const finish = () => { clone.remove(); done(); };
-    if (typeof clone.animate === 'function') {
-      const anim = clone.animate([
-        { transform: 'translate(0, 0)' },
-        { transform: `translate(${dx / 2}px, ${dy - arc}px)`, offset: 0.5 },
-        { transform: `translate(${dx}px, ${dy}px)` }
-      ], { duration: 200, easing: 'cubic-bezier(0.2, 0.8, 0.3, 1)' });
-      anim.onfinish = finish;
-      anim.oncancel = finish;
-    } else {
-      clone.style.transition = 'transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1)';
-      requestAnimationFrame(() => { clone.style.transform = `translate(${dx}px, ${dy}px)`; });
-      setTimeout(finish, 220);
-    }
+    const arc = Math.min(60, Math.abs(dx) * 0.22 + 14);
+
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (targetSlot) targetSlot.classList.remove('tube__slot--target');
+      clone.remove();
+      done();
+    };
+
+    if (typeof clone.animate !== 'function') { finish(); return; }
+
+    const lift = clone.animate(
+      [{ transform: 'translate(0,0) scale(1)' }, { transform: 'translateY(-8px) scale(1.06)' }],
+      { duration: 90, easing: 'cubic-bezier(.22,.9,.3,1)', fill: 'forwards' }
+    );
+    lift.onfinish = () => {
+      const fly = clone.animate([
+        { transform: 'translateY(-8px) scale(1.06)' },
+        { transform: `translate(${dx / 2}px, ${dy - arc - 8}px) scale(1.04)`, offset: 0.5 },
+        { transform: `translate(${dx}px, ${dy}px) scale(1)` }
+      ], { duration: 180, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
+      fly.onfinish = finish;
+      fly.oncancel = finish;
+    };
+    lift.oncancel = finish;
+    setTimeout(finish, 420); // safety net if the animation never resolves
   }
 
   function markComplete(index) {
     const node = boardEl.children[index];
     if (!node) return;
-    node.classList.add('tube--complete');
-    const mark = el('span', { class: 'tube__mark', html: `<span class="icon">${icon('check')}</span>` });
-    node.appendChild(mark);
-    setTimeout(() => { node.classList.remove('tube--complete'); mark.remove(); }, 700);
+    node.classList.add('tube--complete', 'tube--done');
+    setTimeout(() => node.classList.remove('tube--complete'), 320);
   }
 
   function isTubeComplete(index) {
@@ -382,7 +425,11 @@ export function LevelScreen() {
       lastDropTube = to;
       Sound.play('move');
       const completed = isTubeComplete(to);
-      refresh();
+      // only the two jars that changed are re-rendered
+      patchTube(from);
+      patchTube(to);
+      renderTop();
+      renderBoosters();
       lastDropTube = -1;
       if (completed) markComplete(to);
       busy = false;

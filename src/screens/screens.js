@@ -3,7 +3,7 @@ import { t, setLang, currentLang } from '../core/i18n.js';
 import { track } from '../core/analytics.js';
 import * as Sound from '../core/audio.js';
 import * as Ads from '../core/ads.js';
-import { go, rerender, later } from '../core/router.js';
+import { go, rerender, later, onLeave } from '../core/router.js';
 import { el, Button, IconChip, Chip, Card, Toggle, toast, TopBar, BackBar, confirmModal } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { catMascot } from '../ui/cat.js';
@@ -48,10 +48,7 @@ export function MenuScreen() {
   const tasksReady = tasksReadyCount();
 
   const helpers = Card([
-    el('div', { class: 'row row--between' }, [
-      el('h3', { text: t('prelevel.title') }),
-      el('span', { class: 'tag', text: t('reward.watch') })
-    ]),
+    el('h3', { text: t('prelevel.title') }),
     Button({
       label: t('prelevel.booster'),
       sub: pendingHelpers.booster ? t('prelevel.ready') : t('reward.watch'),
@@ -80,12 +77,20 @@ export function MenuScreen() {
     })
   ]);
 
+  const onKey = (e) => {
+    if (e.key === 'Enter' && !document.querySelector('.modal') && !(e.target instanceof HTMLButtonElement)) {
+      e.preventDefault();
+      go('level');
+    }
+  };
+  document.addEventListener('keydown', onKey);
+  onLeave(() => document.removeEventListener('keydown', onKey));
+
   return el('div', { class: 'screen scroll' }, [
-    TopBar({
-      left: Chip({ iconName: 'coin', value: state.coins, cls: 'chip--coin' }),
-      title: '',
-      right: Chip({ iconName: 'star', value: state.starsTotal, cls: 'chip--star' })
-    }),
+    TopBar({ center: [
+      Chip({ iconName: 'coin', value: state.coins, cls: 'chip--coin' }),
+      Chip({ iconName: 'star', value: state.starsTotal, cls: 'chip--star' })
+    ] }),
     el('div', { class: 'menu-hero' }, [
       el('div', { class: 'menu-hero__cat' }, [catMascot({ size: 'md' })]),
       el('div', { class: 'menu-hero__logo' }, [
@@ -143,19 +148,43 @@ export function MenuScreen() {
 
 /* ---------------- result ---------------- */
 
+const PETAL_COLORS = ['#D98BB6', '#EFC65B', '#7BAE7F', '#6C9BD1', '#E89A5D'];
+
 function petalRain(host) {
-  const colors = ['#D98BB6', '#EFC65B', '#7BAE7F', '#6C9BD1', '#E89A5D'];
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const petals = el('div', { class: 'petals' });
-  for (let i = 0; i < 10; i++) {
-    const petal = el('span', { class: 'petal' });
-    petal.style.left = `${5 + Math.random() * 90}%`;
-    petal.style.background = colors[i % colors.length];
-    petal.style.animationDelay = `${Math.random() * 1.6}s`;
-    petal.style.setProperty('--dx', `${(Math.random() - 0.5) * 80}px`);
-    petal.style.setProperty('--dr', `${(Math.random() - 0.5) * 480}deg`);
-    petals.appendChild(petal);
-  }
   host.appendChild(petals);
+  const height = host.getBoundingClientRect().height + 60;
+  for (let i = 0; i < 8; i++) {
+    const petal = el('span', {
+      class: 'petal',
+      html: `<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 0c4 3 5.6 6 4 9.4C9.4 12.8 5 14 2.4 12 -.2 10 .6 5 7 0z" fill="${PETAL_COLORS[i % PETAL_COLORS.length]}"/></svg>`
+    });
+    petal.style.left = `${6 + Math.random() * 86}%`;
+    petals.appendChild(petal);
+    if (typeof petal.animate !== 'function') continue;
+    const drift = (Math.random() - 0.5) * 90;
+    const spin = (Math.random() - 0.5) * 520;
+    const anim = petal.animate([
+      { transform: 'translate(0, 0) rotate(0deg)', opacity: 0 },
+      { transform: `translate(${drift * 0.4}px, ${height * 0.35}px) rotate(${spin * 0.4}deg)`, opacity: 0.95, offset: 0.35 },
+      { transform: `translate(${drift}px, ${height}px) rotate(${spin}deg)`, opacity: 0 }
+    ], { duration: 900 + Math.random() * 320, delay: i * 90, easing: 'cubic-bezier(.4,0,.2,1)' });
+    anim.onfinish = () => petal.remove();
+  }
+  setTimeout(() => petals.remove(), 2600);
+}
+
+// count-up on rAF, no timers left behind
+function countUp(node, from, to, render, ms = 500) {
+  if (from === to) { render(to); return; }
+  const start = performance.now();
+  const step = (now) => {
+    const k = Math.min(1, (now - start) / ms);
+    render(Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3))));
+    if (k < 1 && node.isConnected) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 export function ResultScreen({ levelNumber = 1, stars = 1, coins = 0, newCats = [] }) {
@@ -166,12 +195,13 @@ export function ResultScreen({ levelNumber = 1, stars = 1, coins = 0, newCats = 
   const coinsRow = el('span', { class: 'result__coins', html: `<span class="icon">${icon('coin')}</span><span>+${earned}</span>` });
   const actions = el('div', { class: 'col' });
 
-  const refreshCoins = () => {
+  const setCoinLabel = (n) => {
     coinsRow.replaceChildren(
       el('span', { class: 'icon', html: icon('coin') }),
-      el('span', { text: `+${earned}` })
+      el('span', { text: `+${n}` })
     );
   };
+  const refreshCoins = (from) => countUp(coinsRow, from, earned, setCoinLabel);
 
   const doubleBtn = Button({
     label: t('button.double'),
@@ -183,9 +213,10 @@ export function ResultScreen({ levelNumber = 1, stars = 1, coins = 0, newCats = 
     onClick: async () => {
       const ok = await Ads.showRewarded('win_double');
       if (ok) {
+        const before = earned;
         addCoins(earned, 'win_double');
         earned *= 2;
-        refreshCoins();
+        refreshCoins(before);
         doubleBtn.disabled = true;
       }
     }
@@ -236,10 +267,10 @@ export function ResultScreen({ levelNumber = 1, stars = 1, coins = 0, newCats = 
     coinsRow
   ]);
 
-  later(() => petalRain(resultCard), 120);
+  later(() => { petalRain(resultCard); countUp(coinsRow, 0, earned, setCoinLabel); }, 120);
 
   return el('div', { class: 'screen' }, [
-    TopBar({ left: el('span', { style: { width: '56px' } }), title: '', right: totalChip }),
+    TopBar({ center: [totalChip] }),
     resultCard,
     el('div', { class: 'spacer' }),
     actions,

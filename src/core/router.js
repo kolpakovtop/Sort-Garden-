@@ -31,7 +31,9 @@ export function go(name, params = {}) {
   mountScene(name);
   const shell = document.createElement('div');
   shell.className = 'shell';
-  shell.appendChild(render(params));
+  const view = render(params);
+  view.classList.add('screen--in');
+  shell.appendChild(view);
   root.replaceChildren(shell);
   if (typeof window !== 'undefined') window.scrollTo(0, 0);
 }
