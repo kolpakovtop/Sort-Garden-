@@ -65,7 +65,7 @@ export function MenuScreen() {
     }),
     Button({
       label: t('prelevel.cat'),
-      sub: pendingHelpers.cat ? t('prelevel.ready') : t('prelevel.catText'),
+      sub: pendingHelpers.cat ? t('prelevel.ready') : `${t('reward.watch')}: ${t('prelevel.catText')}`,
       chip: { name: 'cat', tone: 'warm' },
       variant: 'ghost',
       cls: 'btn--tile',
@@ -230,8 +230,8 @@ export function ResultScreen({ levelNumber = 1, stars = 1, coins = 0, newCats = 
 
   const chestBtn = Button({
     action: 'chest',
-    label: t('button.watchBonus'),
-    sub: '+25',
+    label: `${t('button.watchBonus')} +25`,
+    sub: t('reward.watch'),
     chip: { name: 'chest', tone: 'gold' },
     variant: 'reward',
     center: false,
@@ -441,7 +441,7 @@ export function ShopScreen() {
       }),
       Button({
         label: t('shop.trial'),
-        sub: t('shop.trialText'),
+        sub: `${t('reward.watch')}: ${t('shop.trialText')}`,
         chip: { name: 'settings', tone: 'blue' },
         variant: 'reward',
         center: false,
