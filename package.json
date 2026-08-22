@@ -17,7 +17,7 @@
     "build:playgama": "vite build && node scripts/inline.mjs && node scripts/pack-playgama.mjs"
   },
   "devDependencies": {
-    "@playgama/bridge": "^2.0.2",
+    "@playgama/bridge": "^2.1.0",
     "vite": "^5.4.11"
   }
 }
