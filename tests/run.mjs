@@ -387,6 +387,15 @@ test('A10', 'muted text contrast on surface >= 4.5:1', () => {
   assert.ok(r >= 4.5, `contrast ${r.toFixed(2)}:1`);
 });
 
+test('A11', 'store icon ships square, unmasked corners (Yandex §8.3.3)', () => {
+  const gen = read(join(ROOT, 'scripts/store-assets.mjs'));
+  const icon = gen.slice(gen.indexOf('const ICON ='), gen.indexOf('const COVER ='));
+  // internal art (the jars) is allowed its own rounded corners — only the
+  // 512x512 canvas itself must stay square and unclipped
+  assert.ok(!/clip-?[Pp]ath/.test(icon), 'icon SVG clips its own outer corners');
+  assert.ok(!/width="512"\s+height="512"[^>]*\brx=/.test(icon), 'the 512x512 canvas rect is rounded');
+});
+
 /* ---------------- report ---------------- */
 
 const pass = results.filter((r) => r.status === 'PASS').length;

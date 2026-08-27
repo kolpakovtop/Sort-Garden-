@@ -77,9 +77,10 @@ const SHOTS = [
   { name: '5-daily', go: async (page) => { await page.click('[data-action="daily"]'); await page.waitForTimeout(500); } }
 ];
 
+// §8.3.3: media materials must ship with square corners — the platform applies
+// its own mask, so a pre-rounded icon gets flagged in moderation.
 const ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs><clipPath id="r"><rect width="512" height="512" rx="112"/></clipPath></defs>
-  <g clip-path="url(#r)">
+  <g>
     <rect width="512" height="512" fill="#EAF3E6"/>
     <path d="M0 372 C 96 330 176 384 272 366 C 352 350 432 378 512 356 L512 512 L0 512 Z" fill="#C6DDB4"/>
     <path d="M0 424 C 96 396 192 438 288 420 C 384 402 448 432 512 414 L512 512 L0 512 Z" fill="#A9CD97"/>

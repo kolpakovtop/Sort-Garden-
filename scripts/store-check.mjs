@@ -58,6 +58,43 @@ if (fields === 0) {
   report(false, 'разметка полей', `в ${DOC} не найдено ни одного блока с лимитом`);
 }
 
+/* --- Название совпадает с игрой (§5.1.3) ---------------------------
+ * Модерация сверяет поле «Название» с заголовком в самой игре и находит
+ * расхождение по картинке — глазами оно не ловится, потому что поля формы,
+ * локали кода и обложки никогда не открыты рядом. Проверяем механически:
+ * значение из каждой языковой вкладки должно быть тем же, что и app.title
+ * в src/core/i18n.js для этого языка. */
+
+const I18N = 'src/core/i18n.js';
+if (existsSync(I18N)) {
+  const code = readFileSync(I18N, 'utf8');
+  const titleOf = (locale) => {
+    const block = code.match(new RegExp(`const ${locale} = \\{([\\s\\S]*?)\\n\\};`));
+    const line = block && block[1].match(/'app\.title':\s*'([^']*)'/);
+    return line ? line[1] : null;
+  };
+  const SECTIONS = [
+    ['## Русский', 'ru'],
+    ['## English', 'en']
+  ];
+  for (const [heading, locale] of SECTIONS) {
+    const start = doc.indexOf(`${heading}\n`);
+    if (start === -1) continue;
+    const end = doc.indexOf('\n## ', start + heading.length);
+    const section = doc.slice(start, end === -1 ? undefined : end);
+    const nameField = section.match(/^#{2,4}\s+(?:Название|Name)\s+\(.*?\)\s*$\n+```\n([\s\S]*?)\n```/m);
+    const formTitle = nameField ? nameField[1].trim() : null;
+    const gameTitle = titleOf(locale);
+    report(
+      !!formTitle && !!gameTitle && formTitle === gameTitle,
+      `§5.1.3 название (${locale})`,
+      `форма «${formTitle}» ${formTitle === gameTitle ? '=' : '≠'} игра «${gameTitle}»`
+    );
+  }
+} else {
+  report(false, '§5.1.3 название', `${I18N} не найден`);
+}
+
 /* --- Картинки ------------------------------------------------------ */
 
 /** Ширина и высота PNG — два больших слова начиная с 16-го байта. */
